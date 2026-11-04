@@ -3,6 +3,8 @@
 > **Modular Linux & Docker Node Provisioning Toolkit with Control Plane Auto-Enrollment.**  
 > Turn budget VPS instances (<= 1 GB RAM, 1 vCPU) into lean, robust Docker worker nodes consuming only **~90–110 MB idle RAM**.
 
+[English](README.md) | [Русский](README.ru.md) | [Agent & LLM Guide](AGENTS.md)
+
 ---
 
 ## 💡 The Problem
