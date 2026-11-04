@@ -1,13 +1,13 @@
 # Server Setup 🚀
 
-> **Lightweight Linux & Docker Node Provisioning Toolkit with Control Plane Auto-Enrollment.**  
+> **Modular Linux & Docker Node Provisioning Toolkit with Control Plane Auto-Enrollment.**  
 > Turn budget VPS instances (<= 1 GB RAM, 1 vCPU) into lean, robust Docker worker nodes consuming only **~90–110 MB idle RAM**.
 
 ---
 
 ## 💡 The Problem
 
-Modern self-hosted PaaS panels (like **Dokploy**, Coolify, and others) are great, but their default remote node setup is often heavyweight:
+Modern self-hosted PaaS panels (like **Dokploy**, **Coolify**, and others) are great, but their default remote node setup is often heavyweight:
 - Automatically initializes **Docker Swarm mode** (raft consensus, swarm overlay).
 - Runs an in-node **Traefik Ingress** container (consuming 60–100 MB RAM).
 - Installs multi-gigabyte build tools (Nixpacks, Buildpacks, Railpack).
@@ -20,8 +20,12 @@ On budget cloud VPS servers ($3–$5/month with 512 MB – 1 GB RAM), this defau
 **`server-setup`** provides a zero-dependency, production-tested toolkit to:
 1. **Slash Idle Memory by 80%**: Run Docker with `crun` and optimized `daemon.json`, keeping total OS + Docker idle footprint under **~100 MB RAM**.
 2. **Eliminate OOM Crashes**: Tiered memory protection with in-memory **ZRAM (LZ4)** and fallback SSD swapfile.
-3. **One-Command Auto-Enrollment (`Agent Join`)**: Run one command on the new server. It optimizes the machine, pulls your panel's SSH public key, adds it to `authorized_keys`, and registers the server into Dokploy via API with **zero manual clicks in the UI**.
-4. **100% Upstream Compatible**: Requires **0 changes or patches** to Dokploy. Works with official upstream releases.
+3. **One-Command Auto-Enrollment (`Agent Join`)**: Run one command on the new server. It optimizes the machine, pulls your panel's SSH public key, adds it to `authorized_keys`, and registers the server into Dokploy or Coolify via API with **zero manual clicks in the UI**.
+4. **Pluggable Architecture**:
+   - **`core/`**: Memory & Docker low-RAM optimization.
+   - **`adapters/`**: Dokploy, Coolify, Portainer, and Standalone.
+   - **`modules/`**: Cloudflare Tunnel, Caddy micro-proxy, Docker Auto-Prune, and Zero-Overhead Telemetry.
+5. **100% Upstream Compatible**: Requires **0 changes or patches** to Dokploy or Coolify. Works with official upstream releases.
 
 ---
 
@@ -43,59 +47,88 @@ On budget cloud VPS servers ($3–$5/month with 512 MB – 1 GB RAM), this defau
 
 ## ⚡ Quick Start
 
-### Mode A: Auto-Join to Dokploy (Reverse Registration)
+### 1. Auto-Join to Dokploy (Reverse Registration)
 
 Log in to your target server via SSH and run:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/scripts/dokploy-agent-join.sh | sudo bash -s -- \
-  --dokploy-url https://dokploy.example.com \
+curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/server-setup-standalone.sh | sudo bash -s -- \
+  --panel dokploy \
+  --panel-url https://dokploy.example.com \
   --api-key dkp_your_api_key_here \
-  --name "worker-node-01"
+  --name "worker-node-01" \
+  --auto-prune
 ```
 
 What happens automatically:
-1. Tunes kernel, sets up ZRAM + swapfile, installs Docker with `crun`.
+1. Tunes kernel memory, sets up ZRAM (LZ4) + swapfile, installs Docker with `crun`.
 2. Connects to Dokploy API (`/api/sshKey.all`) and fetches your Dokploy instance's public SSH key.
-3. Authorizes the key in `~/.ssh/authorized_keys`.
-4. Detects public IP and calls `POST /api/server.create` and `POST /api/server.setup`.
+3. Authorizes the key in `~/.ssh/authorized_keys` with mode 600.
+4. Auto-detects public IP and calls `POST /api/server.create` and `POST /api/server.setup`.
 5. **The node instantly appears active and green in your Dokploy dashboard!**
 
 ---
 
-### Mode B: Standalone Low-RAM Server Optimization
-
-If you want to prepare any Linux VPS to run Docker with minimal memory consumption (without Dokploy):
+### 2. Auto-Join to Coolify
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/scripts/lightweight-worker-setup.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/server-setup-standalone.sh | sudo bash -s -- \
+  --panel coolify \
+  --panel-url https://coolify.example.com \
+  --api-key your_coolify_token_here \
+  --name "cool-worker-01" \
+  --auto-prune
 ```
-
-Or paste it into the **Custom Setup Command** field in the Dokploy UI when manually adding a server.
 
 ---
 
-## 🛠 Architecture & How It Works
+### 3. Standalone Low-RAM Server with Cloudflare Tunnel & Auto-Prune
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Admin as Sysadmin
-    participant Node as Target VPS (<=1GB RAM)
-    participant Dokploy as Dokploy Control Plane
+If you want to prepare any Linux VPS to run Docker with minimal memory consumption, automatic zero-port tunnel ingress, and weekly disk cleanup:
 
-    Admin->>Node: Run dokploy-agent-join.sh
-    Note over Node: 1. Configure ZRAM, Swap, sysctl, Docker (crun, daemon.json)
-    Node->>Dokploy: GET /api/sshKey.all (Header: x-api-key)
-    Dokploy-->>Node: Return SSH public key
-    Note over Node: 2. Add public key to ~/.ssh/authorized_keys
-    Note over Node: 3. Detect external IP Address
-    Node->>Dokploy: POST /api/server.create (IP, Port, sshKeyId)
-    Dokploy-->>Node: 200 OK (serverId)
-    Node->>Dokploy: POST /api/server.update (command: "echo ready")
-    Node->>Dokploy: POST /api/server.setup (serverId)
-    Dokploy->>Node: SSH handshake & verification
-    Note over Node,Dokploy: 4. Server is active and ready to run Compose workloads!
+```bash
+curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/server-setup-standalone.sh | sudo bash -s -- \
+  --panel standalone \
+  --ingress cloudflare \
+  --cf-token eyJxxxxxxxxxxxxxxxxxx \
+  --auto-prune \
+  --telemetry webhook \
+  --webhook-url https://alert.example.com/webhook
+```
+
+---
+
+## 🛠 Command-Line Reference
+
+```
+Core Options:
+  --panel <type>         Control plane: dokploy | coolify | standalone (default: standalone)
+  --panel-url <url>      URL of the control plane (e.g. https://dokploy.example.com)
+  --api-key <key>        API Key or Token for panel authentication
+  --name <name>          Server display name (default: current hostname)
+  --port <port>          SSH port of this machine (default: 22)
+  --user <user>          SSH username for panel connection (default: current user)
+
+Ingress Options:
+  --ingress <type>       Ingress provider: none | cloudflare | caddy (default: none)
+  --cf-token <token>     Cloudflare Tunnel token (required for --ingress cloudflare)
+  --domain <domain>      Public domain name (used for --ingress caddy)
+  --upstream <host:port> Upstream destination (default: 127.0.0.1:3000)
+
+Maintenance Options:
+  --auto-prune           Enable weekly safe Docker prune (default: enabled)
+  --no-auto-prune        Disable Docker auto-prune
+  --prune-age <age>      Age threshold for prune (default: 168h / 7 days)
+
+Telemetry Options:
+  --telemetry <type>     Telemetry mode: none | webhook | telegram (default: none)
+  --webhook-url <url>    Webhook endpoint for JSON metrics and alerts
+  --tg-token <token>     Telegram Bot token for alerts
+  --tg-chat <chat_id>    Telegram Chat ID for alerts
+
+General:
+  --dry-run              Simulate execution without modifying the host
+  -h, --help             Show help message
 ```
 
 ---
@@ -104,34 +137,62 @@ sequenceDiagram
 
 ```
 server-setup/
-├── scripts/
-│   ├── dokploy-agent-join.sh      # One-click auto-registration agent
-│   ├── lightweight-worker-setup.sh# Low-RAM Docker and Linux tuner
-│   └── README.md                  # Script documentation
-├── research/
-│   ├── 01-remote-deployment-mechanics.md # Dokploy Swarm & Compose analysis
-│   ├── 02-traefik-coupling.md            # Traefik decoupling evidence
-│   └── 03-docker-engine-low-ram.md       # Linux & Docker kernel benchmarks
+├── setup.sh                       # Unified CLI dispatcher
+├── bundle.sh                      # Generates standalone self-extracting installer
+├── core/
+│   ├── memory.sh                  # ZRAM, swapfile, sysctl tuning
+│   └── docker.sh                  # Docker Engine, crun runtime, daemon.json
+├── adapters/
+│   ├── dokploy.sh                 # Dokploy auto-enrollment adapter
+│   ├── coolify.sh                 # Coolify auto-enrollment adapter
+│   └── standalone.sh              # Headless standalone node adapter
+├── modules/
+│   ├── ingress/
+│   │   ├── cloudflare.sh          # Cloudflare Tunnel (zero open ports)
+│   │   └── caddy.sh               # Caddy micro-proxy (<20 MB RAM, auto-SSL)
+│   ├── maintenance/
+│   │   └── auto-prune.sh          # Low-priority systemd timer for image cleanup
+│   └── telemetry/
+│       └── health-cron.sh         # 0 MB resident RAM metrics reporter
+├── dist/
+│   └── server-setup-standalone.sh # Standalone single-file bundle
+├── tests/
+│   ├── run_all_tests.sh           # Test suite runner
+│   ├── test_core.sh
+│   ├── test_dokploy_adapter.sh
+│   ├── test_coolify_adapter.sh
+│   ├── test_auto_prune.sh
+│   ├── test_ingress.sh
+│   ├── test_telemetry.sh
+│   └── test_cli.sh
+├── .github/workflows/
+│   └── ci.yml                     # Multi-distro CI (Ubuntu 22.04/24.04, Debian 12)
 ├── docs/
 │   ├── adr/
-│   │   └── 0001-lightweight-remote-server-profile.md
-│   └── agents/                    # SDD / Matt Pocock workflow rules
+│   │   ├── 0001-lightweight-remote-server-profile.md
+│   │   └── 0002-modular-architecture.md
+│   └── agents/                    # SDD workflow conventions
 ├── GLOSSARY.md                    # Domain language
-├── CLAUDE.md                      # AI Assistant steering rules
+├── CLAUDE.md                      # AI Assistant rules
 ├── LICENSE                        # MIT License
 └── README.md
 ```
 
 ---
 
-## 🗺 Roadmap & Ideas to Expand
+## 🧪 Testing & Verification
 
-- [x] Auto-enrollment agent for Dokploy (`dokploy-agent-join.sh`).
-- [x] Docker + `crun` low-RAM profile under 110 MB RAM.
-- [ ] **Multi-Panel Support**: Adapters for Coolify and Portainer auto-enrollment.
-- [ ] **Lightweight Ingress**: Built-in optional Cloudflare Tunnel (`cloudflared`) or Caddy micro-proxy for direct HTTPS termination without Traefik.
-- [ ] **Auto-Prune Daemon**: Safe, low-priority Docker garbage collection cron for small disks (10–20 GB SSD).
-- [ ] **Zero-overhead Healthchecks**: Micro-daemon or cron reporter streaming stats without cAdvisor.
+Run the automated test suite locally:
+
+```bash
+./tests/run_all_tests.sh
+```
+
+Build the standalone single-file installer:
+
+```bash
+./bundle.sh
+```
 
 ---
 
