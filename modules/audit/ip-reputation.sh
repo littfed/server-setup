@@ -209,13 +209,13 @@ dns_query() {
   local resolver="${CUSTOM_DNS}"
 
   if command -v dig >/dev/null 2>&1; then
-    local dns_arg=""
-    [[ -n "${resolver}" ]] && dns_arg="@${resolver}"
-    dig +short +time=1 +tries=1 "${query}" "${type}" ${dns_arg} 2>/dev/null || true
+    local -a dns_args=()
+    [[ -n "${resolver}" ]] && dns_args=("@${resolver}")
+    dig +short +time=1 +tries=1 "${query}" "${type}" "${dns_args[@]}" 2>/dev/null || true
   elif command -v host >/dev/null 2>&1; then
-    local dns_arg=""
-    [[ -n "${resolver}" ]] && dns_arg="${resolver}"
-    host -W 1 -t "${type}" "${query}" ${dns_arg} 2>/dev/null | awk '/has address/ {print $NF}' || true
+    local -a dns_args=()
+    [[ -n "${resolver}" ]] && dns_args=("${resolver}")
+    host -W 1 -t "${type}" "${query}" "${dns_args[@]}" 2>/dev/null | awk '/has address/ {print $NF}' || true
   else
     echo ""
   fi
@@ -231,13 +231,13 @@ lookup_ptr() {
   fi
 
   if command -v dig >/dev/null 2>&1; then
-    local dns_arg=""
-    [[ -n "${resolver}" ]] && dns_arg="@${resolver}"
-    dig +short +time=1 +tries=1 -x "${ip}" ${dns_arg} 2>/dev/null | sed 's/\.$//' | head -n 1 || true
+    local -a dns_args=()
+    [[ -n "${resolver}" ]] && dns_args=("@${resolver}")
+    dig +short +time=1 +tries=1 -x "${ip}" "${dns_args[@]}" 2>/dev/null | sed 's/\.$//' | head -n 1 || true
   elif command -v host >/dev/null 2>&1; then
-    local dns_arg=""
-    [[ -n "${resolver}" ]] && dns_arg="${resolver}"
-    host -W 1 "${ip}" ${dns_arg} 2>/dev/null | awk '/pointer/ {print $NF}' | sed 's/\.$//' | head -n 1 || true
+    local -a dns_args=()
+    [[ -n "${resolver}" ]] && dns_args=("${resolver}")
+    host -W 1 "${ip}" "${dns_args[@]}" 2>/dev/null | awk '/pointer/ {print $NF}' | sed 's/\.$//' | head -n 1 || true
   else
     echo ""
   fi

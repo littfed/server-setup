@@ -43,7 +43,8 @@ detect_public_ip() {
 run_coolify_adapter() {
     local panel_url=""
     local api_key=""
-    local server_name="$(hostname)"
+    local server_name
+    server_name="$(hostname)"
     local server_port=22
     local server_user="${SUDO_USER:-$USER}"
 

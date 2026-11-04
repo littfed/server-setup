@@ -203,11 +203,11 @@ fi
 # 9. Permissions
 echo "8. Configuring permissions..."
 if [ -n "$SUDO_CMD" ]; then
-    if ! groups $CURRENT_USER | grep -qw docker; then
-        $SUDO_CMD usermod -aG docker $CURRENT_USER
+    if ! groups "$CURRENT_USER" | grep -qw docker; then
+        $SUDO_CMD usermod -aG docker "$CURRENT_USER"
         echo "User $CURRENT_USER added to docker group ✅"
     fi
-    $SUDO_CMD chown -R $CURRENT_USER:$CURRENT_USER /etc/dokploy
+    $SUDO_CMD chown -R "$CURRENT_USER":"$CURRENT_USER" /etc/dokploy
     echo "Permissions configured for $CURRENT_USER ✅"
 fi
 

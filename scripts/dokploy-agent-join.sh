@@ -79,7 +79,7 @@ command -v jq >/dev/null 2>&1 || ($SUDO_CMD apt-get update -qq && $SUDO_CMD apt-
 echo ">>> [1/5] Applying low-RAM optimizations (ZRAM, Swap, sysctl)..."
 
 # 1GB SSD Fallback swap
-if [ $(swapon --show --noheadings | wc -l) -eq 0 ]; then
+if [ "$(swapon --show --noheadings | wc -l)" -eq 0 ]; then
     echo "Creating 1 GB emergency swapfile..."
     $SUDO_CMD fallocate -l 1G /swapfile || $SUDO_CMD dd if=/dev/zero of=/swapfile bs=1M count=1024
     $SUDO_CMD chmod 600 /swapfile
@@ -197,7 +197,7 @@ $SUDO_CMD mkdir -p /etc/dokploy/traefik/dynamic/certificates \
     /etc/dokploy/monitoring /etc/dokploy/registry /etc/dokploy/vector /etc/dokploy/schedules \
     /etc/dokploy/volume-backups /etc/dokploy/volume-backup-lock /etc/dokploy/patch-repos
 $SUDO_CMD chmod 700 /etc/dokploy/ssh
-$SUDO_CMD chown -R $SERVER_USER:$SERVER_USER /etc/dokploy 2>/dev/null || true
+$SUDO_CMD chown -R "$SERVER_USER":"$SERVER_USER" /etc/dokploy 2>/dev/null || true
 
 if ! $SUDO_CMD docker network inspect dokploy-network >/dev/null 2>&1; then
     $SUDO_CMD docker network create --driver bridge --attachable dokploy-network
