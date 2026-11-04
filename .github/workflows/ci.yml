@@ -1,0 +1,75 @@
+name: CI / Automated Testing
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  shell-lint:
+    name: Lint & Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck & jq
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck jq
+
+      - name: Shell syntax check (bash -n)
+        run: |
+          find . -name "*.sh" -not -path "./dist/*" -exec bash -n {} +
+
+      - name: ShellCheck linting
+        run: |
+          shellcheck -e SC1091,SC2034 $(find . -name "*.sh" -not -path "./dist/*")
+
+      - name: Test bundler build
+        run: |
+          ./bundle.sh
+          test -f dist/server-setup-standalone.sh
+          test -x dist/server-setup-standalone.sh
+
+  test-matrix:
+    name: Test on ${{ matrix.os }}
+    needs: shell-lint
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-22.04, ubuntu-24.04 ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install test dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
+
+      - name: Run automated test suite
+        run: |
+          ./tests/run_all_tests.sh
+
+      - name: Test standalone bundle build & run
+        run: |
+          ./bundle.sh
+          ./dist/server-setup-standalone.sh --dry-run --panel standalone
+
+  debian-test:
+    name: Test in Debian 12 (Bookworm) Container
+    needs: shell-lint
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm-slim
+    steps:
+      - name: Install Git, Bash, curl, jq
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq git bash curl jq sudo tar gzip base64
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run test suite in Debian container
+        run: |
+          ./tests/run_all_tests.sh
