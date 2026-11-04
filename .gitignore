@@ -1,0 +1,11 @@
+# Environment & local files
+.env
+.env.local
+*.log
+
+# Scratch directory for local tickets / work
+.scratch/
+
+# OS metadata
+.DS_Store
+Thumbs.db
