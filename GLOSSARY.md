@@ -1,7 +1,12 @@
-# Dokploy Architecture Glossary
+# Server Setup Architecture Glossary
 
-## Remote Server Types
+## Core Terms
 
-- **Deploy Server (Full Node)**: Полнофункциональный удаленный сервер Dokploy. Включает Docker Engine, инициализацию Docker Swarm mode, инстанс Traefik ingress (`dokploy-traefik`), overlay-сеть `dokploy-network`, бинарники сборщиков (Nixpacks, Buildpacks, Railpack) и стек мониторинга. Базовое потребление RAM: 450–550 МБ.
-- **Build Server**: Сервер, выделенный исключительно под сборку Docker-образов для снятия нагрузки с главного инстанса Dokploy. Содержит Docker Engine и CLI-сборщики, не запускает Traefik и Swarm-сервисы.
-- **Lightweight Worker**: Облегченный удаленный рабочий сервер Dokploy для маломощных хостов (RAM <= 1 ГБ, 1 vCPU). Содержит исключительно оптимизированный Docker Engine с рантаймом `crun`, настроенной защитой от OOM (ZRAM + Swapfile) и bridge-сетью `dokploy-network`. Не запускает Docker Swarm, Traefik, локальные сборщики и мониторинг. Базовое потребление RAM: 85–120 МБ.
+- **Core Module (`core`)**: Базовый уровень оптимизации Linux и Docker, выполняемый на любой ноде. Включает гибридную память (ZRAM LZ4 + swapfile), параметры ядра `sysctl`, оптимизацию демона Docker (`daemon.json`, `crun`, `GOMEMLIMIT=128MiB`). Не зависит от внешних сервисов.
+- **Control Plane Adapter (`adapters`)**: Модуль интеграции с внешней системой управления (Dokploy, Coolify, Portainer, Standalone). Обеспечивает получение и авторизацию SSH-ключей, сетевое обнаружение ноды и вызов API панели для обратной регистрации.
+- **Reverse Registration (Обратная регистрация)**: Модель подключения, при которой скрипт запускается на целевом сервере и сам связывается с панелью управления через REST/API, исключая ручной ввод данных в веб-интерфейсе.
+- **Extension Module (`modules`)**: Подключаемый функциональный плагин для ноды:
+  - **Ingress Module**: Модуль внешнего доступа и маршрутизации (Cloudflare Tunnel без открытия портов, либо Caddy micro-proxy).
+  - **Maintenance Module**: Фоновые утилиты обслуживания (например, `auto-prune` по расписанию или порогу диска).
+  - **Telemetry Module**: Сверхлегкий сборщик метрик состояния (CPU, RAM, диск) без постоянных демонов памяти.
+- **Single Dispatcher CLI**: Единая точка входа (`setup.sh`), управляющая запуском ядра, выбором адаптера панели и активацией модулей.
