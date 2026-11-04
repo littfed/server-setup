@@ -73,6 +73,18 @@ run_coolify_adapter() {
         return 0
     fi
 
+    # Ensure jq is installed
+    if ! command -v jq >/dev/null 2>&1; then
+        log_info "Installing lightweight JSON parser (jq)..."
+        if command -v apt-get >/dev/null 2>&1; then
+            $SUDO_CMD apt-get update -qq >/dev/null 2>&1 && $SUDO_CMD apt-get install -y -qq jq >/dev/null 2>&1 || true
+        elif command -v apk >/dev/null 2>&1; then
+            $SUDO_CMD apk add --no-cache jq >/dev/null 2>&1 || true
+        elif command -v dnf >/dev/null 2>&1; then
+            $SUDO_CMD dnf install -y -q jq >/dev/null 2>&1 || true
+        fi
+    fi
+
     # 1. Fetch Coolify SSH Key from /api/v1/security/keys
     log_info "Querying Coolify SSH Keys..."
     local keys_resp
