@@ -65,7 +65,7 @@ jobs:
       - name: Install Git, Bash, curl, jq
         run: |
           apt-get update -qq
-          apt-get install -y -qq git bash curl jq sudo tar gzip base64
+          apt-get install -y -qq git bash curl jq sudo tar gzip coreutils
 
       - name: Checkout repository
         uses: actions/checkout@v4
