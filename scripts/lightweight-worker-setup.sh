@@ -40,7 +40,7 @@ fi
 
 # 2. Memory optimization: Swap & ZRAM
 echo "2. Configuring memory protection (ZRAM + Fallback Swap)..."
-if [ $(swapon --show --noheadings | wc -l) -eq 0 ]; then
+if [ "$(swapon --show --noheadings | wc -l)" -eq 0 ]; then
     echo "Creating 1 GB fallback SSD swapfile..."
     $SUDO_CMD fallocate -l 1G /swapfile || $SUDO_CMD dd if=/dev/zero of=/swapfile bs=1M count=1024
     $SUDO_CMD chmod 600 /swapfile
