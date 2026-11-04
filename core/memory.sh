@@ -144,6 +144,29 @@ disable_systemd_oomd() {
     fi
 }
 
+# 5. Cap journald disk and memory usage
+tune_journald() {
+    log_info "Tuning journald log limits (capping at 100MB)..."
+    if [ "${DRY_RUN:-0}" = "1" ]; then
+        log_ok "[dry-run] Would configure journald SystemMaxUse=100M"
+        return 0
+    fi
+
+    if [ -d /etc/systemd ]; then
+        $SUDO_CMD mkdir -p /etc/systemd/journald.conf.d
+        cat <<'EOF' | $SUDO_CMD tee /etc/systemd/journald.conf.d/low-ram.conf >/dev/null
+[Journal]
+SystemMaxUse=100M
+RuntimeMaxUse=50M
+EOF
+        $SUDO_CMD systemctl restart systemd-journald >/dev/null 2>&1 || true
+        if command -v journalctl >/dev/null 2>&1; then
+            $SUDO_CMD journalctl --vacuum-size=100M >/dev/null 2>&1 || true
+        fi
+        log_ok "journald limits configured and old logs vacuumed."
+    fi
+}
+
 # Main function
 tune_memory() {
     log_info "=== Starting Linux Memory Optimization ==="
@@ -151,6 +174,7 @@ tune_memory() {
     setup_zram
     setup_sysctl
     disable_systemd_oomd
+    tune_journald
     log_ok "=== Memory Optimization Completed Successfully ==="
 }
 

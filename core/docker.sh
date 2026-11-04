@@ -108,8 +108,11 @@ configure_daemon_json() {
     local crun_bin
     crun_bin="$(command -v crun || true)"
 
+    local tmp_low_ram
+    tmp_low_ram="$(mktemp)"
+
     if [ -n "$crun_bin" ]; then
-        cat <<EOF | $SUDO_CMD tee /etc/docker/daemon.json >/dev/null
+        cat <<EOF > "$tmp_low_ram"
 {
   "userland-proxy": false,
   "max-concurrent-downloads": 1,
@@ -138,7 +141,7 @@ configure_daemon_json() {
 }
 EOF
     else
-        cat <<'EOF' | $SUDO_CMD tee /etc/docker/daemon.json >/dev/null
+        cat <<'EOF' > "$tmp_low_ram"
 {
   "userland-proxy": false,
   "max-concurrent-downloads": 1,
@@ -161,7 +164,60 @@ EOF
 }
 EOF
     fi
-    log_ok "/etc/docker/daemon.json configured."
+
+    local target_file="/etc/docker/daemon.json"
+    if [ -f "$target_file" ] && [ -s "$target_file" ]; then
+        log_info "Existing $target_file detected. Backing up and merging configurations safely..."
+        local backup_file
+        backup_file="${target_file}.bak.$(date +%Y%m%d%H%M%S)"
+        $SUDO_CMD cp "$target_file" "$backup_file"
+        log_ok "Backup created at $backup_file."
+
+        # Perform deep merge preserving existing user keys
+        if command -v jq >/dev/null 2>&1; then
+            local merged_json
+            merged_json=$(jq -s '.[0] * .[1]' "$target_file" "$tmp_low_ram" 2>/dev/null || true)
+            if [ -n "$merged_json" ]; then
+                echo "$merged_json" | $SUDO_CMD tee "$target_file" >/dev/null
+                rm -f "$tmp_low_ram"
+                log_ok "Merged low-RAM options into existing $target_file via jq."
+                return 0
+            fi
+        elif command -v python3 >/dev/null 2>&1; then
+            local merged_file
+            merged_file="$(mktemp)"
+            python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f1, open(sys.argv[2]) as f2:
+        d1 = json.load(f1)
+        d2 = json.load(f2)
+    def deep_update(target, src):
+        for k, v in src.items():
+            if isinstance(v, dict) and k in target and isinstance(target[k], dict):
+                deep_update(target[k], v)
+            else:
+                target[k] = v
+        return target
+    merged = deep_update(d1, d2)
+    with open(sys.argv[3], 'w') as out:
+        json.dump(merged, out, indent=2)
+except Exception:
+    sys.exit(1)
+" "$target_file" "$tmp_low_ram" "$merged_file" 2>/dev/null || true
+            if [ -s "$merged_file" ]; then
+                $SUDO_CMD cp "$merged_file" "$target_file"
+                rm -f "$tmp_low_ram" "$merged_file"
+                log_ok "Merged low-RAM options into existing $target_file via python3."
+                return 0
+            fi
+            rm -f "$merged_file"
+        fi
+    fi
+
+    $SUDO_CMD cp "$tmp_low_ram" "$target_file"
+    rm -f "$tmp_low_ram"
+    log_ok "$target_file configured successfully."
 }
 
 # 5. Apply Go memory limit drop-in for dockerd
