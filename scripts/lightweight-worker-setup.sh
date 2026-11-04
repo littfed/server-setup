@@ -13,7 +13,7 @@ echo " Starting Dokploy Lightweight Worker Node Setup..."
 echo " Target: Minimal footprint, Standalone Docker Compose"
 echo "=========================================================="
 
-CURRENT_USER=$USER
+CURRENT_USER="${SUDO_USER:-${USER:-$(id -un)}}"
 if [ "$EUID" -eq 0 ]; then
     SUDO_CMD=""
     echo "Running as root ✅"

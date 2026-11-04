@@ -46,7 +46,7 @@ run_coolify_adapter() {
     local server_name
     server_name="$(hostname)"
     local server_port=22
-    local server_user="${SUDO_USER:-$USER}"
+    local server_user="${SUDO_USER:-${USER:-$(id -un)}}"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in

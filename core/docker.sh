@@ -27,7 +27,7 @@ get_sudo() {
 }
 
 SUDO_CMD="$(get_sudo)"
-CURRENT_USER="${SUDO_USER:-$USER}"
+CURRENT_USER="${SUDO_USER:-${USER:-$(id -un)}}"
 
 # 1. Install Docker Engine if not present
 install_docker() {

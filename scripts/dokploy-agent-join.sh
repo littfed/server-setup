@@ -14,7 +14,7 @@ DOKPLOY_URL=""
 API_KEY=""
 SERVER_NAME="$(hostname)"
 SERVER_PORT=22
-SERVER_USER="$USER"
+SERVER_USER="${SUDO_USER:-${USER:-$(id -un)}}"
 SSH_KEY_ID=""
 
 usage() {
