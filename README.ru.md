@@ -127,6 +127,28 @@ curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/serve
 
 ---
 
+### 5. Аудит репутации и чистоты IP (Zero-Key Threat Audit)
+
+Проверка всех публичных IPv4/IPv6 сервера по 20+ глобальным базам черных списков (Spamhaus, Barracuda, SpamCop, DroneBL), определение ASN, провайдера, страны и rDNS (PTR-записи):
+
+```bash
+# Автономная быстрая проверка любого сервера (определяет собственный IP):
+curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/server-setup-standalone.sh | bash -s -- --audit-only
+
+# Или проверка произвольного IP с указанием DNS-резолвера:
+./modules/audit/ip-reputation.sh 1.2.3.4 --dns 9.9.9.9
+
+# Pre-flight проверка перед регистрацией ноды (предупредит при наличии IP в базах или прервет установку с --strict-audit):
+curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/server-setup-standalone.sh | sudo bash -s -- \
+  --panel dokploy \
+  --panel-url https://dokploy.example.com \
+  --api-key dkp_your_api_key_here \
+  --audit-ip \
+  --strict-audit
+```
+
+---
+
 ## 🛠 Справочник параметров командной строки (CLI)
 
 ```
@@ -137,6 +159,12 @@ curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/serve
   --name <name>          Отображаемое имя сервера (по умолчанию: текущий hostname)
   --port <port>          SSH-порт сервера для подключения панели (по умолчанию: 22)
   --user <user>          Пользователь SSH для панели (по умолчанию: текущий пользователь)
+
+Аудит репутации и безопасности IP:
+  --audit-ip             Включить аудит чистоты публичных IP сервера перед настройкой
+  --strict-audit         Прервать установку, если IP найден в черных списках или имеет высокий Risk Score
+  --audit-only           Запустить только аудит IP без изменений в системе и Docker
+  --dns <ip>             Кастомный DNS-сервер для запросов DNSBL (например: 9.9.9.9, 1.1.1.1)
 
 Параметры Ingress (прокси и туннели):
   --ingress <type>       Тип ingress: none | cloudflare | caddy (по умолчанию: none)
@@ -176,6 +204,8 @@ server-setup/
 │   ├── coolify.sh                 # Адаптер авторегистрации в Coolify API
 │   └── standalone.sh              # Адаптер автономной ноды
 ├── modules/
+│   ├── audit/
+│   │   └── ip-reputation.sh       # Аудит репутации IP без ключей (DNSBL, ASN, Geo)
 │   ├── ingress/
 │   │   ├── cloudflare.sh          # Служба Cloudflare Tunnel (0 открытых портов)
 │   │   └── caddy.sh               # Микро-прокси Caddy (<20 МБ RAM, авто-SSL)

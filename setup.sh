@@ -44,6 +44,12 @@ Core Options:
   --port <port>          SSH port of this machine (default: 22)
   --user <user>          SSH username for panel connection (default: current user)
 
+Audit & Reputation Options:
+  --audit-ip             Run IP reputation & blacklist audit on host public IPs
+  --strict-audit         Abort setup if host IP has high risk or is blacklisted
+  --audit-only           Run only IP reputation audit without system or Docker changes
+  --dns <ip>             Custom DNS resolver for DNSBL queries (e.g. 9.9.9.9)
+
 Ingress Options:
   --ingress <type>       Ingress provider: none | cloudflare | caddy (default: none)
   --cf-token <token>     Cloudflare Tunnel token (required for --ingress cloudflare)
@@ -76,6 +82,11 @@ SERVER_NAME="$(hostname)"
 SERVER_PORT=22
 SERVER_USER="${SUDO_USER:-$USER}"
 
+AUDIT_IP=0
+STRICT_AUDIT=0
+AUDIT_ONLY=0
+CUSTOM_DNS=""
+
 INGRESS="none"
 CF_TOKEN=""
 DOMAIN="localhost"
@@ -99,6 +110,11 @@ while [[ $# -gt 0 ]]; do
         --port) SERVER_PORT="$2"; shift 2 ;;
         --user) SERVER_USER="$2"; shift 2 ;;
 
+        --audit-ip) AUDIT_IP=1; shift ;;
+        --strict-audit) AUDIT_IP=1; STRICT_AUDIT=1; shift ;;
+        --audit-only) AUDIT_ONLY=1; AUDIT_IP=1; shift ;;
+        --dns) CUSTOM_DNS="$2"; shift 2 ;;
+
         --ingress) INGRESS="$2"; shift 2 ;;
         --cf-token) CF_TOKEN="$2"; shift 2 ;;
         --domain) DOMAIN="$2"; shift 2 ;;
@@ -121,6 +137,28 @@ done
 
 banner
 
+# Helper to find module script (local or embedded)
+find_script() {
+    local rel_path="$1"
+    if [ -f "$SCRIPT_DIR/$rel_path" ]; then
+        echo "$SCRIPT_DIR/$rel_path"
+    elif [ -f "./$rel_path" ]; then
+        echo "./$rel_path"
+    else
+        log_err "Required component not found: $rel_path"
+        exit 1
+    fi
+}
+
+# Audit-only fast exit
+if [ "$AUDIT_ONLY" -eq 1 ]; then
+    log_info "Running IP Reputation & Threat Audit (audit-only mode)..."
+    dns_args=()
+    [[ -n "$CUSTOM_DNS" ]] && dns_args=(--dns "$CUSTOM_DNS")
+    "$(find_script "modules/audit/ip-reputation.sh")" "${dns_args[@]}"
+    exit 0
+fi
+
 # Validation
 if [ "$PANEL" = "dokploy" ] || [ "$PANEL" = "coolify" ]; then
     if [ -z "$PANEL_URL" ] || [ -z "$API_KEY" ]; then
@@ -135,25 +173,47 @@ if [ "$INGRESS" = "cloudflare" ] && [ -z "$CF_TOKEN" ]; then
 fi
 
 log_info "Selected Configuration:"
-log_info "  Panel:       $PANEL"
-log_info "  Ingress:     $INGRESS"
-log_info "  Auto-Prune:  $([ "$AUTO_PRUNE" -eq 1 ] && echo "enabled ($PRUNE_AGE)" || echo "disabled")"
-log_info "  Telemetry:   $TELEMETRY"
-log_info "  Dry Run:     ${DRY_RUN:-0}"
+log_info "  Panel:        $PANEL"
+log_info "  IP Audit:     $([ "$AUDIT_IP" -eq 1 ] && echo "enabled $([ "$STRICT_AUDIT" -eq 1 ] && echo "(strict)" || echo "(warn-only)")" || echo "disabled")"
+log_info "  Ingress:      $INGRESS"
+log_info "  Auto-Prune:   $([ "$AUTO_PRUNE" -eq 1 ] && echo "enabled ($PRUNE_AGE)" || echo "disabled")"
+log_info "  Telemetry:    $TELEMETRY"
+log_info "  Dry Run:      ${DRY_RUN:-0}"
 echo ""
 
-# Helper to find module script (local or embedded)
-find_script() {
-    local rel_path="$1"
-    if [ -f "$SCRIPT_DIR/$rel_path" ]; then
-        echo "$SCRIPT_DIR/$rel_path"
-    elif [ -f "./$rel_path" ]; then
-        echo "./$rel_path"
-    else
-        log_err "Required component not found: $rel_path"
-        exit 1
+# Pre-Flight: IP Reputation Audit
+if [ "$AUDIT_IP" -eq 1 ]; then
+    log_info ">>> [Pre-Flight] Running IP Reputation & Threat Intelligence Audit..."
+    dns_args=()
+    [[ -n "$CUSTOM_DNS" ]] && dns_args=(--dns "$CUSTOM_DNS")
+    
+    # Run audit in JSON mode to evaluate risk
+    audit_json=$("$(find_script "modules/audit/ip-reputation.sh")" --json "${dns_args[@]}" 2>/dev/null || echo '{"highest_risk_score": 0, "overall_status": "CLEAN"}')
+    
+    # Also display terminal card
+    "$(find_script "modules/audit/ip-reputation.sh")" "${dns_args[@]}" || true
+
+    risk_score=0
+    risk_status="CLEAN"
+    if command -v jq >/dev/null 2>&1; then
+        risk_score=$(echo "$audit_json" | jq -r '.highest_risk_score // 0')
+        risk_status=$(echo "$audit_json" | jq -r '.overall_status // "CLEAN"')
     fi
-}
+
+    if [ "$risk_score" -gt 40 ]; then
+        if [ "$STRICT_AUDIT" -eq 1 ]; then
+            log_err "CRITICAL: Host IP is flagged as ${risk_status} (Risk Score: ${risk_score}/100)!"
+            log_err "Aborting setup due to --strict-audit flag. Resolve IP reputation issues before provisioning."
+            exit 2
+        else
+            log_warn "WARNING: Host IP has elevated risk (${risk_status}, Risk Score: ${risk_score}/100)."
+            log_warn "Proceeding with provisioning (pass --strict-audit to abort on bad reputation)."
+        fi
+    else
+        log_ok "Host IP reputation check passed ($risk_status, Risk Score: ${risk_score}/100)."
+    fi
+    echo ""
+fi
 
 # Phase 1: Core System & Docker Low-RAM Engine
 log_info ">>> [Phase 1/4] Running Core System & Memory Optimization..."

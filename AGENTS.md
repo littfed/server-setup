@@ -32,6 +32,8 @@ This document is written for AI coding assistants and LLMs (Claude, GPT, Gemini,
 │   ├── coolify.sh                   # Coolify v4 API reverse registration
 │   └── standalone.sh                # Headless node configuration
 ├── modules/
+│   ├── audit/
+│   │   └── ip-reputation.sh         # Parallel DNSBL & threat audit engine (<3s)
 │   ├── ingress/
 │   │   ├── cloudflare.sh            # Cloudflare Tunnel systemd service
 │   │   └── caddy.sh                 # Caddy reverse proxy (<20 MB RAM)
@@ -91,6 +93,16 @@ curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/serve
   --domain <YOUR_DOMAIN> \
   --upstream 127.0.0.1:<PORT> \
   --auto-prune
+```
+
+### Recipe 5: IP Reputation & Blacklist Threat Audit
+When a user wants to check if a server's IP is clean, blacklisted, or abused:
+```bash
+# Fast standalone audit (outputs card with ASN, country, and 20+ DNSBLs):
+curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/server-setup-standalone.sh | bash -s -- --audit-only
+
+# Or audit specific target IP:
+./modules/audit/ip-reputation.sh 1.2.3.4 --dns 9.9.9.9
 ```
 
 ---
@@ -155,6 +167,21 @@ curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/serve
   --ingress cloudflare \
   --cf-token eyJhbGciOi... \
   --auto-prune
+```
+
+### Шаблон 4: Проверка репутации и черных списков IP (Аудит)
+Если пользователь спрашивает, как проверить сервер на спам-базы, abuse или страну:
+```bash
+# Экспресс-проверка хоста по 20+ DNSBL базам:
+curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/server-setup-standalone.sh | bash -s -- --audit-only
+
+# Или запуск на сервере перед установкой с блокировкой при обнаружении в базах:
+curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/server-setup-standalone.sh | sudo bash -s -- \
+  --panel dokploy \
+  --panel-url https://dokploy.example.com \
+  --api-key dkp_your_api_key_here \
+  --audit-ip \
+  --strict-audit
 ```
 
 ### Ключевые архитектурные ограничения для LLM:

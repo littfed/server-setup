@@ -100,6 +100,28 @@ curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/serve
 
 ---
 
+### 4. IP Reputation & Threat Audit (Zero-Key)
+
+Audit your server's public IPv4/IPv6 across 20+ reputation blacklists (Spamhaus, Barracuda, SpamCop, etc.), check ASN/ISP data, and verify rDNS/PTR:
+
+```bash
+# Standalone run on any machine (checks own public IP)
+curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/server-setup-standalone.sh | bash -s -- --audit-only
+
+# Or audit an arbitrary external IP:
+./modules/audit/ip-reputation.sh 1.2.3.4 --dns 9.9.9.9
+
+# Run as pre-flight check before server enrollment (warns if dirty, or aborts with --strict-audit):
+curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/server-setup-standalone.sh | sudo bash -s -- \
+  --panel dokploy \
+  --panel-url https://dokploy.example.com \
+  --api-key dkp_your_api_key_here \
+  --audit-ip \
+  --strict-audit
+```
+
+---
+
 ## 🛠 Command-Line Reference
 
 ```
@@ -110,6 +132,12 @@ Core Options:
   --name <name>          Server display name (default: current hostname)
   --port <port>          SSH port of this machine (default: 22)
   --user <user>          SSH username for panel connection (default: current user)
+
+Audit & Reputation Options:
+  --audit-ip             Run IP reputation & blacklist audit on host public IPs
+  --strict-audit         Abort setup if host IP has high risk or is blacklisted
+  --audit-only           Run only IP reputation audit without system or Docker changes
+  --dns <ip>             Custom DNS resolver for DNSBL queries (e.g. 9.9.9.9, 1.1.1.1)
 
 Ingress Options:
   --ingress <type>       Ingress provider: none | cloudflare | caddy (default: none)
@@ -149,6 +177,8 @@ server-setup/
 │   ├── coolify.sh                 # Coolify auto-enrollment adapter
 │   └── standalone.sh              # Headless standalone node adapter
 ├── modules/
+│   ├── audit/
+│   │   └── ip-reputation.sh       # Zero-key IP reputation & threat intelligence audit
 │   ├── ingress/
 │   │   ├── cloudflare.sh          # Cloudflare Tunnel (zero open ports)
 │   │   └── caddy.sh               # Caddy micro-proxy (<20 MB RAM, auto-SSL)

@@ -31,6 +31,7 @@ run_test "$SCRIPT_DIR/test_coolify_adapter.sh"
 run_test "$SCRIPT_DIR/test_auto_prune.sh"
 run_test "$SCRIPT_DIR/test_ingress.sh"
 run_test "$SCRIPT_DIR/test_telemetry.sh"
+run_test "$SCRIPT_DIR/test_audit.sh"
 run_test "$SCRIPT_DIR/test_cli.sh"
 
 echo ""
