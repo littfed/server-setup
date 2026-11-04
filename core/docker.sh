@@ -132,9 +132,13 @@ configure_daemon_json() {
         fi
     fi
 
+    local target_file="/etc/docker/daemon.json"
+
     # Check if Docker is using containerd-snapshotter
     local use_snapshotter=0
     if docker info 2>/dev/null | grep -qi "containerd-snapshotter.*true"; then
+        use_snapshotter=1
+    elif [ -f "$target_file" ] && grep -qi '"containerd-snapshotter"[[:space:]]*:[[:space:]]*true' "$target_file" 2>/dev/null; then
         use_snapshotter=1
     fi
 
@@ -193,7 +197,6 @@ EOF
 EOF
     fi
 
-    local target_file="/etc/docker/daemon.json"
     if [ -f "$target_file" ] && [ -s "$target_file" ]; then
         log_info "Existing $target_file detected. Backing up and merging configurations safely..."
         local backup_file
@@ -204,7 +207,11 @@ EOF
         # Perform deep merge preserving existing user keys
         if command -v jq >/dev/null 2>&1; then
             local merged_json
-            merged_json=$(jq -s '.[0] * .[1]' "$target_file" "$tmp_low_ram" 2>/dev/null || true)
+            merged_json=$(jq --argjson snap "$use_snapshotter" --argjson crun "$use_crun_as_default" -s '
+                .[0] * .[1]
+                | if $snap == 1 then del(."storage-driver") else . end
+                | if $crun == 0 and ."default-runtime" == "crun" then del(."default-runtime") else . end
+            ' "$target_file" "$tmp_low_ram" 2>/dev/null || true)
             if [ -n "$merged_json" ]; then
                 echo "$merged_json" | $SUDO_CMD tee "$target_file" >/dev/null
                 rm -f "$tmp_low_ram"
@@ -217,6 +224,8 @@ EOF
             python3 -c "
 import json, sys
 try:
+    snap = int(sys.argv[4])
+    crun = int(sys.argv[5])
     with open(sys.argv[1]) as f1, open(sys.argv[2]) as f2:
         d1 = json.load(f1)
         d2 = json.load(f2)
@@ -228,11 +237,15 @@ try:
                 target[k] = v
         return target
     merged = deep_update(d1, d2)
+    if snap == 1:
+        merged.pop('storage-driver', None)
+    if crun == 0 and merged.get('default-runtime') == 'crun':
+        merged.pop('default-runtime', None)
     with open(sys.argv[3], 'w') as out:
         json.dump(merged, out, indent=2)
 except Exception:
     sys.exit(1)
-" "$target_file" "$tmp_low_ram" "$merged_file" 2>/dev/null || true
+" "$target_file" "$tmp_low_ram" "$merged_file" "$use_snapshotter" "$use_crun_as_default" 2>/dev/null || true
             if [ -s "$merged_file" ]; then
                 $SUDO_CMD cp "$merged_file" "$target_file"
                 rm -f "$tmp_low_ram" "$merged_file"
