@@ -76,24 +76,35 @@ install_crun() {
 tune_containerd() {
     log_info "Tuning containerd configuration..."
     if [ "${DRY_RUN:-0}" = "1" ]; then
-        log_ok "[dry-run] Would disable CRI plugin in /etc/containerd/config.toml"
+        log_ok "[dry-run] Would tune containerd configuration"
         return 0
     fi
 
-    $SUDO_CMD mkdir -p /etc/containerd
-    local cfg="/etc/containerd/config.toml"
+    # Detect containerd major version
+    local containerd_ver
+    containerd_ver="$(containerd --version 2>/dev/null | awk '{print $3}' | cut -d. -f1 || echo '1')"
 
-    if [ -f "$cfg" ]; then
-        if ! grep -q 'disabled_plugins = \["cri"\]' "$cfg"; then
-            $SUDO_CMD sed -i 's/disabled_plugins = .*/disabled_plugins = ["cri"]/' "$cfg" 2>/dev/null || true
+    local cfg="/etc/containerd/config.toml"
+    $SUDO_CMD mkdir -p /etc/containerd
+
+    if [ "$containerd_ver" = "v2" ] || [ "$containerd_ver" = "2" ]; then
+        # containerd v2 uses full plugin URI
+        if [ ! -f "$cfg" ]; then
+            cat <<'EOF' | $SUDO_CMD tee "$cfg" >/dev/null
+version = 3
+disabled_plugins = ["io.containerd.cri.v1", "io.containerd.grpc.v1.cri"]
+EOF
         fi
     else
-        cat <<'EOF' | $SUDO_CMD tee "$cfg" >/dev/null
+        # containerd v1
+        if [ ! -f "$cfg" ]; then
+            cat <<'EOF' | $SUDO_CMD tee "$cfg" >/dev/null
 version = 2
 disabled_plugins = ["cri"]
 EOF
+        fi
     fi
-    log_ok "containerd optimized (CRI plugin disabled, saves ~20 MB RAM)."
+    log_ok "containerd optimized."
 }
 
 # 4. Configure /etc/docker/daemon.json
@@ -108,10 +119,29 @@ configure_daemon_json() {
     local crun_bin
     crun_bin="$(command -v crun || true)"
 
+    # Check if crun supports OCI spec >= 1.2.0 required by modern Docker (Docker 28+)
+    local use_crun_as_default=0
+    if [ -n "$crun_bin" ]; then
+        local oci_max
+        oci_max="$($crun_bin features 2>/dev/null | grep '"ociVersionMax"' | tr -dc '0-9.' | head -n 1 || echo '1.0')"
+        local major minor
+        major=$(echo "$oci_max" | cut -d. -f1)
+        minor=$(echo "$oci_max" | cut -d. -f2)
+        if [ "$major" -gt 1 ] || { [ "$major" -eq 1 ] && [ "$minor" -ge 2 ]; }; then
+            use_crun_as_default=1
+        fi
+    fi
+
+    # Check if Docker is using containerd-snapshotter
+    local use_snapshotter=0
+    if docker info 2>/dev/null | grep -qi "containerd-snapshotter.*true"; then
+        use_snapshotter=1
+    fi
+
     local tmp_low_ram
     tmp_low_ram="$(mktemp)"
 
-    if [ -n "$crun_bin" ]; then
+    if [ "$use_snapshotter" -eq 1 ]; then
         cat <<EOF > "$tmp_low_ram"
 {
   "userland-proxy": false,
@@ -119,14 +149,11 @@ configure_daemon_json() {
   "max-concurrent-uploads": 1,
   "live-restore": true,
   "features": {
-    "buildkit": false
+    "buildkit": false,
+    "containerd-snapshotter": true
   },
-  "default-runtime": "crun",
-  "runtimes": {
-    "crun": {
-      "path": "$crun_bin"
-    }
-  },
+  $([ "$use_crun_as_default" -eq 1 ] && echo '"default-runtime": "crun",')
+  $([ -n "$crun_bin" ] && echo '"runtimes": { "crun": { "path": "'"$crun_bin"'" } },')
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "10m",
@@ -136,12 +163,11 @@ configure_daemon_json() {
   "default-ulimits": {
     "nofile": { "Name": "nofile", "Hard": 65535, "Soft": 65535 },
     "nproc": { "Name": "nproc", "Hard": 4096, "Soft": 4096 }
-  },
-  "storage-driver": "overlay2"
+  }
 }
 EOF
     else
-        cat <<'EOF' > "$tmp_low_ram"
+        cat <<EOF > "$tmp_low_ram"
 {
   "userland-proxy": false,
   "max-concurrent-downloads": 1,
@@ -150,6 +176,8 @@ EOF
   "features": {
     "buildkit": false
   },
+  $([ "$use_crun_as_default" -eq 1 ] && echo '"default-runtime": "crun",')
+  $([ -n "$crun_bin" ] && echo '"runtimes": { "crun": { "path": "'"$crun_bin"'" } },')
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "10m",
