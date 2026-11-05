@@ -69,6 +69,18 @@ detect_target_engine() {
         return
     fi
 
+    # If Fail2ban is already active, keep using Fail2ban
+    if command -v fail2ban-client >/dev/null 2>&1; then
+        echo "fail2ban"
+        return
+    fi
+
+    # If CrowdSec is already active, keep using CrowdSec
+    if command -v cscli >/dev/null 2>&1; then
+        echo "crowdsec"
+        return
+    fi
+
     # Read RAM in MB from /proc/meminfo or free
     local total_kb=0
     if [ -f /proc/meminfo ]; then
