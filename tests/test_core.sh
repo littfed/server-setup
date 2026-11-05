@@ -9,10 +9,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export DRY_RUN=1
 
-echo ">>> [1/4] Checking bash syntax for all core modules..."
+echo ">>> [1/5] Checking bash syntax for all core modules..."
+bash -n "$SCRIPT_DIR/core/preflight.sh"
 bash -n "$SCRIPT_DIR/core/memory.sh"
 bash -n "$SCRIPT_DIR/core/docker.sh"
 bash -n "$SCRIPT_DIR/core/system.sh"
+bash -n "$SCRIPT_DIR/core/time.sh"
 echo "Core syntax checks passed ✅"
 
 echo ">>> [2/4] Testing core/memory.sh..."
@@ -40,7 +42,7 @@ echo "$docker_out" | grep -q "GOMEMLIMIT=128MiB" || { echo "❌ docker.sh missin
 echo "$docker_out" | grep -q "dokploy-network" || { echo "❌ docker.sh missing bridge network"; exit 1; }
 echo "core/docker.sh assertions passed ✅"
 
-echo ">>> [4/4] Testing core/system.sh..."
+echo ">>> [4/5] Testing core/system.sh..."
 "$SCRIPT_DIR/core/system.sh" --help >/dev/null
 sys_out="$("$SCRIPT_DIR/core/system.sh")"
 
@@ -52,5 +54,12 @@ echo "$sys_out" | grep -q "fs.file-max=2097152" || { echo "❌ system.sh missing
 echo "$sys_out" | grep -q "fstrim.timer" || { echo "❌ system.sh missing fstrim"; exit 1; }
 echo "$sys_out" | grep -q "unattended-upgrades" || { echo "❌ system.sh missing unattended-upgrades"; exit 1; }
 echo "core/system.sh assertions passed ✅"
+
+echo ">>> [5/5] Testing core/time.sh..."
+"$SCRIPT_DIR/core/time.sh" --help >/dev/null
+time_out="$("$SCRIPT_DIR/core/time.sh")"
+echo "$time_out" | grep -q "time.cloudflare.com" || { echo "❌ time.sh missing Cloudflare NTP"; exit 1; }
+echo "$time_out" | grep -q "systemd-timesyncd or chrony" || { echo "❌ time.sh missing time syncd"; exit 1; }
+echo "core/time.sh assertions passed ✅"
 
 echo "✅ All Core Engine tests passed successfully with full behavioral assertions!"

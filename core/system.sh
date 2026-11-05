@@ -58,6 +58,10 @@ SUDO_CMD="$(get_sudo)"
 # 1. Enable Google BBR TCP Congestion Control
 tune_bbr() {
     log_info "Enabling Google BBR TCP Congestion Control..."
+    if [ "${SKIP_KERNEL_MODS:-0}" = "1" ]; then
+        log_warn "Skipping Google BBR (container virtualization detected)."
+        return 0
+    fi
     if [ "${DRY_RUN:-0}" = "1" ]; then
         log_ok "[dry-run] Would enable tcp_bbr kernel module and configure fq + bbr in /etc/sysctl.d/99-bbr.conf"
         return 0

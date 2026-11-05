@@ -64,6 +64,10 @@ setup_swapfile() {
 # 2. ZRAM configuration (LZ4 compression, priority 100)
 setup_zram() {
     log_info "Configuring ZRAM in-memory compressed swap (LZ4)..."
+    if [ "${SKIP_KERNEL_MODS:-0}" = "1" ]; then
+        log_warn "Skipping ZRAM configuration (container virtualization detected)."
+        return 0
+    fi
     if [ "${DRY_RUN:-0}" = "1" ]; then
         log_ok "[dry-run] Would install systemd-zram-generator and configure [zram0]"
         return 0

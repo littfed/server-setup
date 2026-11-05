@@ -50,6 +50,16 @@ Audit & Reputation Options:
   --audit-only           Run only IP reputation audit without system or Docker changes
   --dns <ip>             Custom DNS resolver for DNSBL queries (e.g. 9.9.9.9)
 
+Diagnostics & Benchmark:
+  --bench, --test        Run hardware & network performance benchmark (standalone)
+  --quick                Run accelerated benchmark test
+  --json                 Emit machine-readable JSON output
+
+Pre-Flight & Rollback:
+  --skip-preflight       Skip pre-flight virtualization, port and resource checks
+  --rollback [target]    Restore configuration snapshot (target: latest | timestamp)
+  --rollback-list        List available configuration snapshots
+
 Ingress Options:
   --ingress <type>       Ingress provider: none | cloudflare | caddy (default: none)
   --cf-token <token>     Cloudflare Tunnel token (required for --ingress cloudflare)
@@ -95,6 +105,13 @@ STRICT_AUDIT=0
 AUDIT_ONLY=0
 CUSTOM_DNS=""
 
+BENCHMARK_ONLY=0
+BENCH_QUICK=0
+BENCH_JSON=0
+SKIP_PREFLIGHT=0
+ROLLBACK_ACTION=""
+ROLLBACK_TARGET="latest"
+
 INGRESS="none"
 CF_TOKEN=""
 DOMAIN="localhost"
@@ -128,6 +145,21 @@ while [[ $# -gt 0 ]]; do
         --strict-audit) AUDIT_IP=1; STRICT_AUDIT=1; shift ;;
         --audit-only) AUDIT_ONLY=1; AUDIT_IP=1; shift ;;
         --dns) CUSTOM_DNS="$2"; shift 2 ;;
+
+        --bench|--test) BENCHMARK_ONLY=1; shift ;;
+        --quick) BENCH_QUICK=1; shift ;;
+        --json) BENCH_JSON=1; shift ;;
+        --skip-preflight) SKIP_PREFLIGHT=1; shift ;;
+        --rollback)
+            ROLLBACK_ACTION="restore"
+            if [[ $# -ge 2 ]] && [[ "$2" != --* ]]; then
+                ROLLBACK_TARGET="$2"
+                shift 2
+            else
+                shift
+            fi
+            ;;
+        --rollback-list) ROLLBACK_ACTION="list"; shift ;;
 
         --ingress) INGRESS="$2"; shift 2 ;;
         --cf-token) CF_TOKEN="$2"; shift 2 ;;
@@ -170,6 +202,28 @@ find_script() {
         exit 1
     fi
 }
+
+# Benchmark-only fast exit
+if [ "$BENCHMARK_ONLY" -eq 1 ]; then
+    bench_args=()
+    [ "$BENCH_QUICK" -eq 1 ] && bench_args+=(--quick)
+    [ "$BENCH_JSON" -eq 1 ] && bench_args+=(--json)
+    "$(find_script "modules/diagnostics/bench.sh")" "${bench_args[@]}"
+    exit 0
+fi
+
+# Rollback fast exit
+if [ -n "$ROLLBACK_ACTION" ]; then
+    case "$ROLLBACK_ACTION" in
+        list)
+            "$(find_script "modules/maintenance/rollback.sh")" list
+            ;;
+        restore)
+            "$(find_script "modules/maintenance/rollback.sh")" restore "$ROLLBACK_TARGET"
+            ;;
+    esac
+    exit 0
+fi
 
 # Audit-only fast exit
 if [ "$AUDIT_ONLY" -eq 1 ]; then
@@ -237,8 +291,19 @@ if [ "$AUDIT_IP" -eq 1 ]; then
     echo ""
 fi
 
+# Pre-Flight Host Diagnostics & Snapshot
+if [ "$SKIP_PREFLIGHT" -eq 0 ]; then
+    log_info ">>> [Pre-Flight] Running Host Sanity & Virtualization Checks..."
+    "$(find_script "core/preflight.sh")"
+    echo ""
+    log_info ">>> [Pre-Flight] Capturing Baseline Configuration Snapshot..."
+    "$(find_script "modules/maintenance/rollback.sh")" snapshot
+    echo ""
+fi
+
 # Phase 1: Core System & Docker Low-RAM Engine
 log_info ">>> [Phase 1/4] Running Core System Tuning & Memory Optimization..."
+"$(find_script "core/time.sh")"
 "$(find_script "core/system.sh")"
 "$(find_script "core/memory.sh")"
 

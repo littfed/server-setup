@@ -141,6 +141,16 @@ Audit & Reputation Options:
   --audit-only           Run only IP reputation audit without system or Docker changes
   --dns <ip>             Custom DNS resolver for DNSBL queries (e.g. 9.9.9.9, 1.1.1.1)
 
+Diagnostics & Benchmark:
+  --bench, --test        Run hardware & network performance benchmark (standalone)
+  --quick                Run accelerated benchmark test
+  --json                 Emit machine-readable JSON output
+
+Pre-Flight & Rollback:
+  --skip-preflight       Skip pre-flight virtualization, port and resource checks
+  --rollback [target]    Restore configuration snapshot (target: latest | timestamp)
+  --rollback-list        List available configuration snapshots
+
 Ingress Options:
   --ingress <type>       Ingress provider: none | cloudflare | caddy (default: none)
   --cf-token <token>     Cloudflare Tunnel token (required for --ingress cloudflare)
@@ -180,9 +190,11 @@ server-setup/
 ├── setup.sh                       # Unified CLI dispatcher
 ├── bundle.sh                      # Generates standalone self-extracting installer
 ├── core/
+│   ├── preflight.sh               # Host sanity check, virtualization detection & auto-adaptation
+│   ├── time.sh                    # NTP synchronization (systemd-timesyncd / chrony)
 │   ├── system.sh                  # Google BBR, sysctl network hardening, limits, fstrim, updates
 │   ├── memory.sh                  # ZRAM, swapfile, sysctl memory tuning
-│   └── docker.sh                  # Docker Engine, crun runtime, daemon.json
+│   └── docker.sh                  # Docker Engine, crun runtime, daemon.json (log limits: 10m/3 files)
 ├── adapters/
 │   ├── dokploy.sh                 # Dokploy auto-enrollment adapter
 │   ├── coolify.sh                 # Coolify auto-enrollment adapter
@@ -190,11 +202,14 @@ server-setup/
 ├── modules/
 │   ├── audit/
 │   │   └── ip-reputation.sh       # Zero-key IP reputation & threat intelligence audit
+│   ├── diagnostics/
+│   │   └── bench.sh               # Hardware & network benchmark (CPU steal, I/O IOPS, CDN speed)
 │   ├── ingress/
 │   │   ├── cloudflare.sh          # Cloudflare Tunnel (zero open ports)
 │   │   └── caddy.sh               # Caddy micro-proxy (<20 MB RAM, auto-SSL)
 │   ├── maintenance/
-│   │   └── auto-prune.sh          # Low-priority systemd timer for image cleanup
+│   │   ├── auto-prune.sh          # Low-priority systemd timer for image cleanup
+│   │   └── rollback.sh            # Pre-flight snapshots & atomic state rollback
 │   ├── security/
 │   │   ├── ssh.sh                 # SSH hardening with anti-lockout key verification
 │   │   ├── firewall.sh            # UFW firewall baseline + DOCKER-USER chain isolation
@@ -213,6 +228,8 @@ server-setup/
 │   ├── test_telemetry.sh
 │   ├── test_audit.sh
 │   ├── test_security.sh
+│   ├── test_diagnostics.sh
+│   ├── test_rollback.sh
 │   └── test_cli.sh
 ├── .github/workflows/
 │   └── ci.yml                     # Multi-distro CI (Ubuntu 22.04/24.04, Debian 12)

@@ -111,7 +111,7 @@ EOF
 configure_daemon_json() {
     log_info "Applying low-RAM optimizations to /etc/docker/daemon.json..."
     if [ "${DRY_RUN:-0}" = "1" ]; then
-        log_ok "[dry-run] Would write /etc/docker/daemon.json (userland-proxy=false, max-concurrent=1, buildkit=false)"
+        log_ok "[dry-run] Would write /etc/docker/daemon.json (userland-proxy=false, max-concurrent=1, buildkit=false, log-limit=10m)"
         return 0
     fi
 
@@ -313,6 +313,17 @@ setup_network_and_permissions() {
 }
 
 tune_docker() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --dry-run) export DRY_RUN=1; shift ;;
+            -h|--help)
+                echo "Usage: $0 [--dry-run] [-h|--help]"
+                exit 0
+                ;;
+            *) shift ;;
+        esac
+    done
+
     log_info "=== Starting Docker Low-RAM Engine Optimization ==="
     install_docker
     install_crun
@@ -324,5 +335,5 @@ tune_docker() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    tune_docker
+    tune_docker "$@"
 fi

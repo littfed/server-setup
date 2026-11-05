@@ -168,6 +168,16 @@ curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/serve
   --audit-only           Запустить только аудит IP без изменений в системе и Docker
   --dns <ip>             Кастомный DNS-сервер для запросов DNSBL (например: 9.9.9.9, 1.1.1.1)
 
+Диагностика и бенчмарк:
+  --bench, --test        Запустить бенчмарк системы и сети (производительность CPU steal, I/O, задержки)
+  --quick                Ускоренный тест (быстрый замер за 1 секунду)
+  --json                 Машиночитаемый формат вывода JSON
+
+Предстартовые проверки и откат:
+  --skip-preflight       Пропустить валидацию портов, ресурсов и типа виртуализации
+  --rollback [target]    Откатить конфигурацию сервера (цель: latest | timestamp)
+  --rollback-list        Показать список доступных снимков системы
+
 Параметры Ingress (прокси и туннели):
   --ingress <type>       Тип ingress: none | cloudflare | caddy (по умолчанию: none)
   --cf-token <token>     Токен Cloudflare Tunnel (обязателен для --ingress cloudflare)
@@ -207,9 +217,11 @@ server-setup/
 ├── setup.sh                       # Главный CLI-диспетчер
 ├── bundle.sh                      # Скрипт сборки автономного монолитного инсталлятора
 ├── core/
+│   ├── preflight.sh               # Предварительная диагностика хоста и авто-адаптация
+│   ├── time.sh                    # Синхронизация времени (systemd-timesyncd / chrony)
 │   ├── system.sh                  # Google BBR, sysctl защита сети, лимиты nofile, fstrim, автообновления
 │   ├── memory.sh                  # Настройка ZRAM (LZ4), swapfile, sysctl
-│   └── docker.sh                  # Установка Docker Engine, рантайм crun, daemon.json
+│   └── docker.sh                  # Установка Docker Engine, рантайм crun, лимит логов 10m/3
 ├── adapters/
 │   ├── dokploy.sh                 # Адаптер авторегистрации в Dokploy API
 │   ├── coolify.sh                 # Адаптер авторегистрации в Coolify API
@@ -217,11 +229,14 @@ server-setup/
 ├── modules/
 │   ├── audit/
 │   │   └── ip-reputation.sh       # Аудит репутации IP без ключей (DNSBL, ASN, Geo)
+│   ├── diagnostics/
+│   │   └── bench.sh               # Бенчмарк системы и сети (CPU steal, IOPS, задержки, скорость)
 │   ├── ingress/
 │   │   ├── cloudflare.sh          # Служба Cloudflare Tunnel (0 открытых портов)
 │   │   └── caddy.sh               # Микро-прокси Caddy (<20 МБ RAM, авто-SSL)
 │   ├── maintenance/
-│   │   └── auto-prune.sh          # Systemd-таймер фоновой очистки Docker
+│   │   ├── auto-prune.sh          # Systemd-таймер фоновой очистки Docker
+│   │   └── rollback.sh            # Автоматические снимки и откат состояния хоста
 │   ├── security/
 │   │   ├── ssh.sh                 # Харденинг SSH с проверкой ключей и защитой от lockout
 │   │   ├── firewall.sh            # Базовый UFW фаервол + устранение обхода через DOCKER-USER
@@ -240,6 +255,8 @@ server-setup/
 │   ├── test_telemetry.sh
 │   ├── test_audit.sh
 │   ├── test_security.sh
+│   ├── test_diagnostics.sh
+│   ├── test_rollback.sh
 │   └── test_cli.sh
 ├── .github/workflows/
 │   └── ci.yml                     # Мульти-дистрибутивный CI (Ubuntu 22.04/24.04, Debian 12)
