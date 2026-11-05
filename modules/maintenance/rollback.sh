@@ -138,7 +138,7 @@ EOF
 
     # Prune old snapshots, keep last 10
     local all_snaps
-    all_snaps=$(ls -1d "$BACKUP_ROOT"/[0-9]* 2>/dev/null | sort || true)
+    all_snaps=$(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -name '[0-9]*' -type d 2>/dev/null | sort || true)
     local total_count
     total_count=$(echo "$all_snaps" | grep -c . || echo 0)
     if [ "$total_count" -gt 10 ]; then
@@ -184,7 +184,7 @@ restore_snapshot() {
     local snap_dir=""
 
     if [ "$target" = "latest" ]; then
-        snap_dir="$(ls -1d "$BACKUP_ROOT"/[0-9]* 2>/dev/null | sort | tail -n 1 || true)"
+        snap_dir="$(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -name '[0-9]*' -type d 2>/dev/null | sort | tail -n 1 || true)"
         if [ -z "$snap_dir" ]; then
             if [ "${DRY_RUN:-0}" = "1" ]; then
                 log_ok "[dry-run] Would identify latest snapshot and restore all tracked configurations"
