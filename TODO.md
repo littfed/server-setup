@@ -2,6 +2,17 @@
 
 ## Current Work & Ready for Implementation
 
+- [ ] **Feature: Server Diagnostics, Pre-Flight, Docker Log Limits, Time Sync & Rollback (Tickets 18–23)**
+  - **Status**: Ready for implementation (`ready-for-agent`)
+  - **Spec**: [`.scratch/diagnostics-and-management/spec.md`](.scratch/diagnostics-and-management/spec.md)
+  - **Issues**:
+    - [ ] [18: Pre-Flight Sanity & Auto-Adaptation Engine (`core/preflight.sh`)](.scratch/diagnostics-and-management/issues/18-preflight-sanity-and-autoadaptation.md)
+    - [ ] [19: Hardware & Network Benchmark Module (`modules/diagnostics/bench.sh`)](.scratch/diagnostics-and-management/issues/19-hardware-and-network-benchmark.md)
+    - [ ] [20: Docker Log Rotation & Storage Protection (`core/docker.sh`)](.scratch/diagnostics-and-management/issues/20-docker-log-rotation-limits.md)
+    - [ ] [21: Accurate Time Synchronization Module (`core/time.sh`)](.scratch/diagnostics-and-management/issues/21-accurate-time-sync.md)
+    - [ ] [22: Configuration Rollback & Backup Engine (`modules/maintenance/rollback.sh`)](.scratch/diagnostics-and-management/issues/22-configuration-rollback-engine.md)
+    - [ ] [23: CLI Integration, Bundling, Automated Tests & Documentation](.scratch/diagnostics-and-management/issues/23-cli-integration-bundling-tests.md)
+
 - [x] **Feature: Server Security Hardening & Performance Integration (Tickets 13–17)**
   - **Status**: Completed & Verified with comprehensive test suite
   - **Spec**: [`.scratch/security-hardening/spec.md`](.scratch/security-hardening/spec.md)
