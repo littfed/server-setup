@@ -143,7 +143,10 @@ Audit & Reputation Options:
 
 Diagnostics & Benchmark:
   --bench, --test        Run hardware & network performance benchmark (standalone)
-  --quick                Run accelerated benchmark test
+  --speedtest            Run multi-stream network speedtest (throughput, latency, jitter)
+  --streams <N>          Number of parallel TCP streams for speedtest (default: 4)
+  --server <id/url>      Target specific speedtest server
+  --quick                Run accelerated benchmark or speedtest
   --json                 Emit machine-readable JSON output
 
 Pre-Flight & Rollback:

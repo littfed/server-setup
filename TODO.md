@@ -2,13 +2,13 @@
 
 ## Current Work & Ready for Implementation
 
-- [ ] **Feature: Network Bandwidth Throughput & Multi-Stream Speedtest (Tickets 24–26)**
-  - **Status**: Ready for implementation
+- [x] **Feature: Network Bandwidth Throughput & Multi-Stream Speedtest (Tickets 24–26)**
+  - **Status**: Completed & Verified with comprehensive test suite
   - **Spec**: [`.scratch/network-speedtest/spec.md`](.scratch/network-speedtest/spec.md)
   - **Issues**:
-    - [ ] [24: Network Bandwidth Engine: Upload Speed, Mbit/s & Multi-Region Diagnostics](.scratch/network-speedtest/issues/24-network-bandwidth-upload-and-mbit.md)
-    - [ ] [25: Multi-Stream Speedtest Engine (`modules/diagnostics/speedtest.sh`)](.scratch/network-speedtest/issues/25-multi-stream-speedtest-engine.md)
-    - [ ] [26: CLI Integration, Bundling, Automated Tests & Documentation](.scratch/network-speedtest/issues/26-speedtest-cli-bundling-and-tests.md)
+    - [x] [24: Network Bandwidth Engine: Upload Speed, Mbit/s & Multi-Region Diagnostics](.scratch/network-speedtest/issues/24-network-bandwidth-upload-and-mbit.md)
+    - [x] [25: Multi-Stream Speedtest Engine (`modules/diagnostics/speedtest.sh`)](.scratch/network-speedtest/issues/25-multi-stream-speedtest-engine.md)
+    - [x] [26: CLI Integration, Bundling, Automated Tests & Documentation](.scratch/network-speedtest/issues/26-speedtest-cli-bundling-and-tests.md)
 
 - [x] **Feature: Server Diagnostics, Pre-Flight, Docker Log Limits, Time Sync & Rollback (Tickets 18–23)**
   - **Status**: Completed & Verified with comprehensive test suite

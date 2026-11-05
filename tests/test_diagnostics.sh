@@ -51,6 +51,9 @@ echo "$bench_out" | grep -q "STORAGE I/O PERFORMANCE" || {
 echo "$bench_out" | grep -q "NETWORK LATENCY & BANDWIDTH" || {
     echo "❌ Missing network section in bench output"; exit 1;
 }
+echo "$bench_out" | grep -q "CDN Upload Speed" || {
+    echo "❌ Missing upload speed row in bench output"; exit 1;
+}
 
 bench_json="$("$SCRIPT_DIR/modules/diagnostics/bench.sh" --dry-run --json)"
 echo "$bench_json" | jq -e '.cpu_benchmark.steal_time_pct' >/dev/null || {
@@ -61,6 +64,9 @@ echo "$bench_json" | jq -e '.storage_benchmark.random_4k_iops' >/dev/null || {
 }
 echo "$bench_json" | jq -e '.network_benchmark.cdn_download_mb_s' >/dev/null || {
     echo "❌ Missing download speed in bench JSON"; exit 1;
+}
+echo "$bench_json" | jq -e '.network_benchmark.cdn_upload_mbps' >/dev/null || {
+    echo "❌ Missing upload mbps in bench JSON"; exit 1;
 }
 echo "modules/diagnostics/bench.sh passed ✅"
 

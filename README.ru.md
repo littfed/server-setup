@@ -170,6 +170,9 @@ curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/serve
 
 Диагностика и бенчмарк:
   --bench, --test        Запустить бенчмарк системы и сети (производительность CPU steal, I/O, задержки)
+  --speedtest            Запустить многопоточный тест пропускной способности (Download, Upload, Ping, Jitter)
+  --streams <N>          Количество параллельных TCP потоков для speedtest (по умолчанию: 4)
+  --server <id/url>      Указать конкретный тестовый сервер
   --quick                Ускоренный тест (быстрый замер за 1 секунду)
   --json                 Машиночитаемый формат вывода JSON
 

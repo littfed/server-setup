@@ -52,7 +52,10 @@ Audit & Reputation Options:
 
 Diagnostics & Benchmark:
   --bench, --test        Run hardware & network performance benchmark (standalone)
-  --quick                Run accelerated benchmark test
+  --speedtest            Run multi-stream network speedtest (throughput, latency, jitter)
+  --streams <N>          Number of parallel streams for speedtest (default: 4)
+  --server <id/url>      Target specific speedtest server
+  --quick                Run accelerated benchmark or speedtest
   --json                 Emit machine-readable JSON output
 
 Pre-Flight & Rollback:
@@ -106,6 +109,9 @@ AUDIT_ONLY=0
 CUSTOM_DNS=""
 
 BENCHMARK_ONLY=0
+SPEEDTEST_ONLY=0
+SPEEDTEST_STREAMS=4
+SPEEDTEST_SERVER=""
 BENCH_QUICK=0
 BENCH_JSON=0
 SKIP_PREFLIGHT=0
@@ -147,6 +153,9 @@ while [[ $# -gt 0 ]]; do
         --dns) CUSTOM_DNS="$2"; shift 2 ;;
 
         --bench|--test) BENCHMARK_ONLY=1; shift ;;
+        --speedtest) SPEEDTEST_ONLY=1; shift ;;
+        --streams) SPEEDTEST_STREAMS="$2"; shift 2 ;;
+        --server) SPEEDTEST_SERVER="$2"; shift 2 ;;
         --quick) BENCH_QUICK=1; shift ;;
         --json) BENCH_JSON=1; shift ;;
         --skip-preflight) SKIP_PREFLIGHT=1; shift ;;
@@ -209,6 +218,17 @@ if [ "$BENCHMARK_ONLY" -eq 1 ]; then
     [ "$BENCH_QUICK" -eq 1 ] && bench_args+=(--quick)
     [ "$BENCH_JSON" -eq 1 ] && bench_args+=(--json)
     "$(find_script "modules/diagnostics/bench.sh")" "${bench_args[@]}"
+    exit 0
+fi
+
+# Speedtest-only fast exit
+if [ "$SPEEDTEST_ONLY" -eq 1 ]; then
+    speed_args=()
+    [ "$BENCH_QUICK" -eq 1 ] && speed_args+=(--quick)
+    [ "$BENCH_JSON" -eq 1 ] && speed_args+=(--json)
+    [ -n "$SPEEDTEST_STREAMS" ] && speed_args+=(--streams "$SPEEDTEST_STREAMS")
+    [ -n "$SPEEDTEST_SERVER" ] && speed_args+=(--server "$SPEEDTEST_SERVER")
+    "$(find_script "modules/diagnostics/speedtest.sh")" "${speed_args[@]}"
     exit 0
 fi
 

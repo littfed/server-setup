@@ -34,6 +34,7 @@ run_test "$SCRIPT_DIR/test_telemetry.sh"
 run_test "$SCRIPT_DIR/test_audit.sh"
 run_test "$SCRIPT_DIR/test_security.sh"
 run_test "$SCRIPT_DIR/test_diagnostics.sh"
+run_test "$SCRIPT_DIR/test_speedtest.sh"
 run_test "$SCRIPT_DIR/test_rollback.sh"
 run_test "$SCRIPT_DIR/test_cli.sh"
 

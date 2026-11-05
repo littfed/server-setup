@@ -187,10 +187,10 @@ bench_storage() {
     echo "$seq_speed_mb|$iops|$latency_ms"
 }
 
-# 4. Network Latencies & CDN Speedtest
+# 4. Network Latencies & CDN Speedtest (Download & Upload)
 bench_network() {
     if [ "${DRY_RUN:-0}" = "1" ]; then
-        echo "4.2|0.1|8.5|11.2|2.1|185"
+        echo "4.2|0.1|8.5|11.2|2.1|185.0|1480.0|92.5|740.0"
         return
     fi
 
@@ -222,22 +222,47 @@ bench_network() {
         dns_lookup_ms="$(awk "BEGIN {printf \"%.1f\", $timing * 1000}")"
     fi
 
-    # Fast Download test (25MB payload from Cloudflare CDN)
-    local dl_speed_mb="0"
+    # Fast Download test (25MB payload from Cloudflare CDN; 10MB in quick mode)
+    local dl_bytes=25000000
+    [ "$QUICK" -eq 1 ] && dl_bytes=10000000
+    local dl_speed_mb="0.0"
+    local dl_speed_mbps="0.0"
+
     if command -v curl >/dev/null 2>&1; then
         local dl_bytes_sec
-        dl_bytes_sec="$(curl -s -o /dev/null -w "%{speed_download}\n" --max-time 6 "https://speed.cloudflare.com/__down?bytes=25000000" 2>/dev/null || echo "0")"
-        dl_speed_mb="$(awk "BEGIN {printf \"%.1f\", $dl_bytes_sec / 1048576}")"
+        dl_bytes_sec="$(curl -s -o /dev/null -w "%{speed_download}\n" --max-time 8 "https://speed.cloudflare.com/__down?bytes=$dl_bytes" 2>/dev/null || echo "0")"
+        if [ -n "$dl_bytes_sec" ] && [ "$(awk "BEGIN {print ($dl_bytes_sec > 0 ? 1 : 0)}")" -eq 1 ]; then
+            dl_speed_mb="$(awk "BEGIN {printf \"%.1f\", $dl_bytes_sec / 1048576}")"
+            dl_speed_mbps="$(awk "BEGIN {printf \"%.1f\", ($dl_bytes_sec * 8) / 1000000}")"
+        fi
     fi
 
-    echo "${rtts[0]}|${rtts[1]}|${rtts[2]}|${rtts[3]}|$dns_lookup_ms|$dl_speed_mb"
+    # Fast Upload test (10MB payload via HTTP POST to Cloudflare CDN; 5MB in quick mode)
+    local ul_bytes=10000000
+    [ "$QUICK" -eq 1 ] && ul_bytes=5000000
+    local ul_speed_mb="0.0"
+    local ul_speed_mbps="0.0"
+
+    if command -v curl >/dev/null 2>&1; then
+        local ul_bytes_sec
+        ul_bytes_sec="$(head -c "$ul_bytes" /dev/zero | curl -s -o /dev/null -w "%{speed_upload}\n" --max-time 8 --data-binary @- "https://speed.cloudflare.com/__up" 2>/dev/null || echo "0")"
+        if [ -n "$ul_bytes_sec" ] && [ "$(awk "BEGIN {print ($ul_bytes_sec > 0 ? 1 : 0)}")" -eq 1 ]; then
+            ul_speed_mb="$(awk "BEGIN {printf \"%.1f\", $ul_bytes_sec / 1048576}")"
+            ul_speed_mbps="$(awk "BEGIN {printf \"%.1f\", ($ul_bytes_sec * 8) / 1000000}")"
+        fi
+    fi
+
+    echo "${rtts[0]}|${rtts[1]}|${rtts[2]}|${rtts[3]}|$dns_lookup_ms|$dl_speed_mb|$dl_speed_mbps|$ul_speed_mb|$ul_speed_mbps"
 }
 
 main() {
     IFS='|' read -r os_name kernel cpu_model cpu_cores mem_total_mb disk_total_gb <<< "$(get_system_info)"
     IFS='|' read -r steal_pct cpu_speed_mb <<< "$(bench_cpu)"
     IFS='|' read -r seq_speed_mb iops latency_ms <<< "$(bench_storage)"
-    IFS='|' read -r ping_cf ping_google ping_quad9 ping_yandex dns_ms dl_speed_mb <<< "$(bench_network)"
+    IFS='|' read -r ping_cf ping_google ping_quad9 ping_yandex dns_ms dl_speed_mb dl_speed_mbps ul_speed_mb ul_speed_mbps <<< "$(bench_network)"
+
+    local is_steal_elevated
+    is_steal_elevated="$(awk "BEGIN {print ($steal_pct > 5.0 ? 1 : 0)}")"
 
     if [ "$JSON_OUTPUT" -eq 1 ]; then
         cat <<EOF
@@ -253,7 +278,7 @@ main() {
   "cpu_benchmark": {
     "steal_time_pct": $steal_pct,
     "sha256_mb_s": $cpu_speed_mb,
-    "hypervisor_noise_status": "$([ "$(echo "$steal_pct > 5.0" | bc -l 2>/dev/null || echo 0)" -eq 1 ] && echo "ELEVATED" || echo "CLEAN")"
+    "hypervisor_noise_status": "$([ "$is_steal_elevated" -eq 1 ] && echo "ELEVATED" || echo "CLEAN")"
   },
   "storage_benchmark": {
     "sequential_write": "$seq_speed_mb",
@@ -268,7 +293,10 @@ main() {
       "yandex_77_88_88": "$ping_yandex"
     },
     "dns_resolution_ms": $dns_ms,
-    "cdn_download_mb_s": $dl_speed_mb
+    "cdn_download_mb_s": $dl_speed_mb,
+    "cdn_download_mbps": $dl_speed_mbps,
+    "cdn_upload_mb_s": $ul_speed_mb,
+    "cdn_upload_mbps": $ul_speed_mbps
   }
 }
 EOF
@@ -299,7 +327,7 @@ EOF
 
     echo -e "${BOLD}⚡ CPU & HYPERVISOR HEALTH${RESET}"
     printf "  %-20s: %s%%\n" "CPU Steal Time" "$steal_pct"
-    if [ "$(echo "$steal_pct > 5.0" | bc -l 2>/dev/null || echo 0)" -eq 1 ]; then
+    if [ "$is_steal_elevated" -eq 1 ]; then
         printf "  %-20s: ${RED}⚠️  ELEVATED (Host neighbor congestion detected)${RESET}\n" "Steal Status"
     else
         printf "  %-20s: ${GREEN}✓ Clean (Minimal neighbor interference)${RESET}\n" "Steal Status"
@@ -316,7 +344,8 @@ EOF
     printf "  %-20s: %s ms (Cloudflare) | %s ms (Google)\n" "Global RTT" "$ping_cf" "$ping_google"
     printf "  %-20s: %s ms (Quad9)      | %s ms (Yandex)\n" "Regional RTT" "$ping_quad9" "$ping_yandex"
     printf "  %-20s: %s ms\n" "DNS Query Time" "$dns_ms"
-    printf "  %-20s: %s MB/s\n" "CDN Download Speed" "$dl_speed_mb"
+    printf "  %-20s: %s Mbit/s (%s MB/s)\n" "CDN Download Speed" "$dl_speed_mbps" "$dl_speed_mb"
+    printf "  %-20s: %s Mbit/s (%s MB/s)\n" "CDN Upload Speed" "$ul_speed_mbps" "$ul_speed_mb"
     echo ""
     echo -e "${BOLD}${GREEN}✓ Benchmark completed successfully.${RESET}"
     echo "================================================================================"
