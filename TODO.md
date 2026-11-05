@@ -2,8 +2,8 @@
 
 ## Current Work & Ready for Implementation
 
-- [ ] **Feature: Server Security Hardening & Performance Integration (Tickets 13–17)**
-  - **Status**: Ready for implementation (`ready-for-agent`)
+- [x] **Feature: Server Security Hardening & Performance Integration (Tickets 13–17)**
+  - **Status**: Completed & Verified with comprehensive test suite
   - **Spec**: [`.scratch/security-hardening/spec.md`](.scratch/security-hardening/spec.md)
   - **Issues**:
     - [x] [13: Core System Tuning & Network Hardening (`core/system.sh`)](.scratch/security-hardening/issues/13-core-system-tuning-and-network-hardening.md)

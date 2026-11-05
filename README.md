@@ -59,15 +59,17 @@ curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/serve
   --panel-url https://dokploy.example.com \
   --api-key dkp_your_api_key_here \
   --name "worker-node-01" \
+  --secure \
   --auto-prune
 ```
 
 What happens automatically:
-1. Tunes kernel memory, sets up ZRAM (LZ4) + swapfile, installs Docker with `crun`.
-2. Connects to Dokploy API (`/api/sshKey.all`) and fetches your Dokploy instance's public SSH key.
-3. Authorizes the key in `~/.ssh/authorized_keys` with mode 600.
-4. Auto-detects public IP and calls `POST /api/server.create` and `POST /api/server.setup`.
-5. **The node instantly appears active and green in your Dokploy dashboard!**
+1. Tunes kernel memory (ZRAM LZ4 + swapfile), network (Google BBR, SYN flood defense), and Docker with `crun`.
+2. Hardens SSH with anti-lockout protection, configures UFW firewall with `DOCKER-USER` chain isolation, and activates adaptive IDS (Fail2ban or CrowdSec).
+3. Connects to Dokploy API (`/api/sshKey.all`) and fetches your Dokploy instance's public SSH key.
+4. Authorizes the key in `~/.ssh/authorized_keys` with mode 600.
+5. Auto-detects public IP and registers the node in Dokploy without port conflict.
+6. **The node instantly appears active and green in your Dokploy dashboard!**
 
 ---
 
@@ -150,6 +152,14 @@ Maintenance Options:
   --no-auto-prune        Disable Docker auto-prune
   --prune-age <age>      Age threshold for prune (default: 168h / 7 days)
 
+Security & Hardening Options:
+  --secure               Enable comprehensive security: SSH hardening + Firewall + IDS
+  --harden-ssh           Enable SSH hardening (key-based auth, modern ciphers, timeouts)
+  --ssh-port <port>      SSH port for hardening and firewall (default: 22)
+  --firewall             Enable UFW baseline firewall with DOCKER-USER protection
+  --open-ports <ports>   Comma-separated extra ports to open (e.g. 80,443)
+  --ids <mode>           Intrusion detection engine: auto | fail2ban | crowdsec (default: none)
+
 Telemetry Options:
   --telemetry <type>     Telemetry mode: none | webhook | telegram (default: none)
   --webhook-url <url>    Webhook endpoint for JSON metrics and alerts
@@ -170,7 +180,8 @@ server-setup/
 ├── setup.sh                       # Unified CLI dispatcher
 ├── bundle.sh                      # Generates standalone self-extracting installer
 ├── core/
-│   ├── memory.sh                  # ZRAM, swapfile, sysctl tuning
+│   ├── system.sh                  # Google BBR, sysctl network hardening, limits, fstrim, updates
+│   ├── memory.sh                  # ZRAM, swapfile, sysctl memory tuning
 │   └── docker.sh                  # Docker Engine, crun runtime, daemon.json
 ├── adapters/
 │   ├── dokploy.sh                 # Dokploy auto-enrollment adapter
@@ -184,6 +195,10 @@ server-setup/
 │   │   └── caddy.sh               # Caddy micro-proxy (<20 MB RAM, auto-SSL)
 │   ├── maintenance/
 │   │   └── auto-prune.sh          # Low-priority systemd timer for image cleanup
+│   ├── security/
+│   │   ├── ssh.sh                 # SSH hardening with anti-lockout key verification
+│   │   ├── firewall.sh            # UFW firewall baseline + DOCKER-USER chain isolation
+│   │   └── ids.sh                 # Adaptive intrusion detection (Fail2ban vs CrowdSec)
 │   └── telemetry/
 │       └── health-cron.sh         # 0 MB resident RAM metrics reporter
 ├── dist/
@@ -196,6 +211,8 @@ server-setup/
 │   ├── test_auto_prune.sh
 │   ├── test_ingress.sh
 │   ├── test_telemetry.sh
+│   ├── test_audit.sh
+│   ├── test_security.sh
 │   └── test_cli.sh
 ├── .github/workflows/
 │   └── ci.yml                     # Multi-distro CI (Ubuntu 22.04/24.04, Debian 12)

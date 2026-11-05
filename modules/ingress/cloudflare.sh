@@ -27,8 +27,6 @@ get_sudo() {
     fi
 }
 
-SUDO_CMD="$(get_sudo)"
-
 # 1. Install cloudflared binary
 install_cloudflared() {
     log_info "Checking cloudflared binary..."
@@ -88,9 +86,15 @@ main() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --cf-token) token="$2"; shift 2 ;;
+            -h|--help)
+                echo "Usage: $0 --cf-token <TOKEN>"
+                exit 0
+                ;;
             *) shift ;;
         esac
     done
+
+    SUDO_CMD="$(get_sudo)"
 
     install_cloudflared
     if [ -n "$token" ]; then

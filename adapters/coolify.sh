@@ -55,6 +55,10 @@ run_coolify_adapter() {
             --name) server_name="$2"; shift 2 ;;
             --port) server_port="$2"; shift 2 ;;
             --user) server_user="$2"; shift 2 ;;
+            -h|--help)
+                echo "Usage: $0 --panel-url <URL> --api-key <TOKEN> [--name <NAME>] [--port <PORT>] [--user <USER>]"
+                exit 0
+                ;;
             *) shift ;;
         esac
     done

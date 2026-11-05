@@ -27,8 +27,6 @@ get_sudo() {
     fi
 }
 
-SUDO_CMD="$(get_sudo)"
-
 # 1. Standalone prune execution (can be run directly or via systemd)
 execute_prune() {
     local filter_age="${1:-168h}" # Default 7 days
@@ -135,9 +133,23 @@ main() {
             --run-now) action="run"; shift ;;
             --filter-age) filter_age="$2"; shift 2 ;;
             --threshold) threshold="$2"; shift 2 ;;
+            -h|--help)
+                cat <<EOF
+Usage: $0 [options]
+
+Options:
+  --run-now              Execute prune immediately instead of installing service
+  --filter-age <age>     Age filter for Docker prune (default: 168h)
+  --threshold <pct>      Only prune if disk usage exceeds this percentage (default: 0)
+  -h, --help             Show this help message
+EOF
+                exit 0
+                ;;
             *) shift ;;
         esac
     done
+
+    SUDO_CMD="$(get_sudo)"
 
     if [ "$action" = "run" ]; then
         execute_prune "$filter_age" "$threshold"

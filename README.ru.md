@@ -62,16 +62,18 @@ curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/serve
   --panel-url https://dokploy.example.com \
   --api-key dkp_your_api_key_here \
   --name "worker-node-01" \
+  --secure \
   --auto-prune
 ```
 
 **Что происходит автоматически:**
-1. Настраивается ядро Linux, поднимается ZRAM (LZ4) + swapfile, ставится Docker с рантаймом `crun`.
-2. Скрипт обращается к API Dokploy (`/api/sshKey.all`) и скачивает публичный SSH-ключ панели.
-3. Ключ безопасно добавляется в `~/.ssh/authorized_keys` с правами 600.
-4. Автоматически определяется публичный IP и отправляется запрос в `POST /api/server.create` и `POST /api/server.setup`.
-5. Создается локальная сеть `dokploy-network`.
-6. **Сервер мгновенно появляется в дашборде Dokploy со статусом Online (зеленый)!**
+1. Оптимизируется ядро Linux (ZRAM LZ4 + swapfile), активируется Google BBR, защита от SYN-флуда, дескрипторы файлов и Docker с рантаймом `crun`.
+2. Включается комплексная безопасность: SSH-харденинг с защитой от lockout, фаервол UFW с изоляцией цепочки `DOCKER-USER`, адаптивная защита от брутфорса (Fail2ban или CrowdSec).
+3. Скрипт обращается к API Dokploy (`/api/sshKey.all`) и скачивает публичный SSH-ключ панели.
+4. Ключ безопасно добавляется в `~/.ssh/authorized_keys` с правами 600.
+5. Автоматически определяется публичный IP и регистрируется нода в Dokploy без конфликтов портов.
+6. Создается локальная сеть `dokploy-network`.
+7. **Сервер мгновенно появляется в дашборде Dokploy со статусом Online (зеленый)!**
 
 > **Примечание:** В Dokploy создайте API-ключ в разделе **User Profile -> API Keys**, и убедитесь, что в **Settings -> SSH Keys** добавлен хотя бы один SSH-ключ.
 
@@ -177,6 +179,14 @@ curl -sSL https://raw.githubusercontent.com/littfed/server-setup/main/dist/serve
   --no-auto-prune        Отключить автоматическую очистку Docker
   --prune-age <age>      Порог возраста удаляемых неиспользуемых слоев (по умолчанию: 168h / 7 дней)
 
+Безопасность и защита от атак:
+  --secure               Включить полный профиль безопасности: SSH + Фаервол + IDS/IPS
+  --harden-ssh           Укрепление SSH (только ключи, современные шифры, защита от lockout)
+  --ssh-port <port>      Порт SSH для конфигурации и фаервола (по умолчанию: 22)
+  --firewall             Базовый фаервол UFW с изоляцией цепочки DOCKER-USER
+  --open-ports <ports>   Дополнительные открываемые порты через запятую (например: 80,443)
+  --ids <mode>           Система обнаружения/предотвращения вторжений: auto | fail2ban | crowdsec
+
 Телеметрия и алерты (без постоянного расхода RAM):
   --telemetry <type>     Режим телеметрии: none | webhook | telegram (по умолчанию: none)
   --webhook-url <url>    URL вебхука для отправки JSON-метрик и алертов
@@ -197,6 +207,7 @@ server-setup/
 ├── setup.sh                       # Главный CLI-диспетчер
 ├── bundle.sh                      # Скрипт сборки автономного монолитного инсталлятора
 ├── core/
+│   ├── system.sh                  # Google BBR, sysctl защита сети, лимиты nofile, fstrim, автообновления
 │   ├── memory.sh                  # Настройка ZRAM (LZ4), swapfile, sysctl
 │   └── docker.sh                  # Установка Docker Engine, рантайм crun, daemon.json
 ├── adapters/
@@ -211,6 +222,10 @@ server-setup/
 │   │   └── caddy.sh               # Микро-прокси Caddy (<20 МБ RAM, авто-SSL)
 │   ├── maintenance/
 │   │   └── auto-prune.sh          # Systemd-таймер фоновой очистки Docker
+│   ├── security/
+│   │   ├── ssh.sh                 # Харденинг SSH с проверкой ключей и защитой от lockout
+│   │   ├── firewall.sh            # Базовый UFW фаервол + устранение обхода через DOCKER-USER
+│   │   └── ids.sh                 # Адаптивная защита от атак (Fail2ban при <=1.5GB, CrowdSec при >1.5GB)
 │   └── telemetry/
 │       └── health-cron.sh         # Сборщик метрик из /proc по cron (0 МБ постоянной RAM)
 ├── dist/
@@ -223,6 +238,8 @@ server-setup/
 │   ├── test_auto_prune.sh
 │   ├── test_ingress.sh
 │   ├── test_telemetry.sh
+│   ├── test_audit.sh
+│   ├── test_security.sh
 │   └── test_cli.sh
 ├── .github/workflows/
 │   └── ci.yml                     # Мульти-дистрибутивный CI (Ubuntu 22.04/24.04, Debian 12)

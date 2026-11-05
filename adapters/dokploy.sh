@@ -60,6 +60,10 @@ run_dokploy_adapter() {
             --port) server_port="$2"; shift 2 ;;
             --user) server_user="$2"; shift 2 ;;
             --ssh-key-id) ssh_key_id="$2"; shift 2 ;;
+            -h|--help)
+                echo "Usage: $0 --panel-url <URL> --api-key <KEY> [--name <NAME>] [--port <PORT>] [--user <USER>]"
+                exit 0
+                ;;
             *) shift ;;
         esac
     done

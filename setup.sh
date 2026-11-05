@@ -61,6 +61,14 @@ Maintenance Options:
   --no-auto-prune        Disable Docker auto-prune
   --prune-age <age>      Age threshold for prune (default: 168h / 7 days)
 
+Security & Hardening Options:
+  --secure               Enable comprehensive security: SSH hardening + Firewall + IDS
+  --harden-ssh           Enable SSH hardening (key-based auth, modern ciphers, timeouts)
+  --ssh-port <port>      SSH port for hardening and firewall (default: 22)
+  --firewall             Enable UFW baseline firewall with DOCKER-USER protection
+  --open-ports <ports>   Comma-separated extra ports to open (e.g. 80,443)
+  --ids <mode>           Intrusion detection engine: auto | fail2ban | crowdsec (default: none)
+
 Telemetry Options:
   --telemetry <type>     Telemetry mode: none | webhook | telegram (default: none)
   --webhook-url <url>    Webhook endpoint for JSON metrics and alerts
@@ -71,7 +79,7 @@ General:
   --dry-run              Simulate execution without modifying the host
   -h, --help             Show this help message
 EOF
-    exit 0
+    exit "${1:-0}"
 }
 
 # Defaults
@@ -94,6 +102,12 @@ UPSTREAM="127.0.0.1:3000"
 
 AUTO_PRUNE=1
 PRUNE_AGE="168h"
+
+SECURE_PROFILE=0
+HARDEN_SSH=0
+FIREWALL=0
+EXTRA_PORTS=""
+IDS_MODE="none"
 
 TELEMETRY="none"
 WEBHOOK_URL=""
@@ -124,14 +138,21 @@ while [[ $# -gt 0 ]]; do
         --no-auto-prune) AUTO_PRUNE=0; shift ;;
         --prune-age) PRUNE_AGE="$2"; shift 2 ;;
 
+        --secure) SECURE_PROFILE=1; HARDEN_SSH=1; FIREWALL=1; [ "$IDS_MODE" = "none" ] && IDS_MODE="auto"; shift ;;
+        --harden-ssh) HARDEN_SSH=1; shift ;;
+        --ssh-port) SERVER_PORT="$2"; shift 2 ;;
+        --firewall) FIREWALL=1; shift ;;
+        --open-ports) EXTRA_PORTS="$2"; shift 2 ;;
+        --ids) IDS_MODE="$2"; shift 2 ;;
+
         --telemetry) TELEMETRY="$2"; shift 2 ;;
         --webhook-url) WEBHOOK_URL="$2"; shift 2 ;;
         --tg-token) TG_TOKEN="$2"; shift 2 ;;
         --tg-chat) TG_CHAT="$2"; shift 2 ;;
 
         --dry-run) export DRY_RUN=1; shift ;;
-        -h|--help) usage ;;
-        *) log_err "Unknown option: $1"; usage ;;
+        -h|--help) usage 0 ;;
+        *) log_err "Unknown option: $1"; usage 1 ;;
     esac
 done
 
@@ -175,6 +196,7 @@ fi
 log_info "Selected Configuration:"
 log_info "  Panel:        $PANEL"
 log_info "  IP Audit:     $([ "$AUDIT_IP" -eq 1 ] && echo "enabled $([ "$STRICT_AUDIT" -eq 1 ] && echo "(strict)" || echo "(warn-only)")" || echo "disabled")"
+log_info "  Security:     $([ "$SECURE_PROFILE" -eq 1 ] && echo "full secure profile" || echo "custom (ssh:$HARDEN_SSH, fw:$FIREWALL, ids:$IDS_MODE)")"
 log_info "  Ingress:      $INGRESS"
 log_info "  Auto-Prune:   $([ "$AUTO_PRUNE" -eq 1 ] && echo "enabled ($PRUNE_AGE)" || echo "disabled")"
 log_info "  Telemetry:    $TELEMETRY"
@@ -216,14 +238,32 @@ if [ "$AUDIT_IP" -eq 1 ]; then
 fi
 
 # Phase 1: Core System & Docker Low-RAM Engine
-log_info ">>> [Phase 1/4] Running Core System & Memory Optimization..."
+log_info ">>> [Phase 1/4] Running Core System Tuning & Memory Optimization..."
+"$(find_script "core/system.sh")"
 "$(find_script "core/memory.sh")"
 
 log_info ">>> [Phase 2/4] Running Core Docker Low-RAM Engine Setup..."
 "$(find_script "core/docker.sh")"
 
-# Phase 2: Maintenance & Extensions
+# Phase 3: Maintenance & Extensions & Security
 log_info ">>> [Phase 3/4] Configuring Selected Modules..."
+
+if [ "$HARDEN_SSH" -eq 1 ]; then
+    log_info "Configuring SSH Security Hardening..."
+    "$(find_script "modules/security/ssh.sh")" --port "$SERVER_PORT"
+fi
+
+if [ "$FIREWALL" -eq 1 ]; then
+    log_info "Configuring Baseline Firewall..."
+    fw_args=(--ssh-port "$SERVER_PORT")
+    [[ -n "$EXTRA_PORTS" ]] && fw_args+=(--open-ports "$EXTRA_PORTS")
+    "$(find_script "modules/security/firewall.sh")" "${fw_args[@]}"
+fi
+
+if [ "$IDS_MODE" != "none" ]; then
+    log_info "Configuring Intrusion Prevention ($IDS_MODE)..."
+    "$(find_script "modules/security/ids.sh")" --mode "$IDS_MODE"
+fi
 
 if [ "$AUTO_PRUNE" -eq 1 ]; then
     log_info "Configuring Docker auto-prune..."

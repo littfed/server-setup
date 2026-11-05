@@ -26,8 +26,6 @@ get_sudo() {
     fi
 }
 
-SUDO_CMD="$(get_sudo)"
-
 # 1. Setup Caddy configuration and container
 setup_caddy_ingress() {
     local domain="${1:-localhost}"
@@ -80,9 +78,15 @@ main() {
         case "$1" in
             --domain) domain="$2"; shift 2 ;;
             --upstream) upstream="$2"; shift 2 ;;
+            -h|--help)
+                echo "Usage: $0 [--domain <domain>] [--upstream <host:port>]"
+                exit 0
+                ;;
             *) shift ;;
         esac
     done
+
+    SUDO_CMD="$(get_sudo)"
 
     setup_caddy_ingress "$domain" "$upstream"
 }

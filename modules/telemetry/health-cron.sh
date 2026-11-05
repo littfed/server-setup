@@ -26,8 +26,6 @@ get_sudo() {
     fi
 }
 
-SUDO_CMD="$(get_sudo)"
-
 # 1. Gather metrics directly from kernel interfaces
 sample_metrics() {
     local hostname
@@ -148,9 +146,26 @@ main() {
             --tg-token) tg_token="$2"; shift 2 ;;
             --tg-chat) tg_chat="$2"; shift 2 ;;
             --interval) interval="$2"; shift 2 ;;
+            -h|--help)
+                cat <<EOF
+Usage: $0 [options]
+
+Options:
+  --send-now             Gather metrics and dispatch immediately
+  --install-cron         Install cron job to periodically send metrics
+  --webhook-url <url>    Destination webhook URL
+  --tg-token <token>     Telegram Bot token
+  --tg-chat <id>         Telegram Chat ID
+  --interval <min>       Sampling interval in minutes (default: 5)
+  -h, --help             Show this help message
+EOF
+                exit 0
+                ;;
             *) shift ;;
         esac
     done
+
+    SUDO_CMD="$(get_sudo)"
 
     case "$action" in
         sample) sample_metrics ;;
