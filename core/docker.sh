@@ -142,6 +142,14 @@ configure_daemon_json() {
         use_snapshotter=1
     fi
 
+    # Check if Swarm is active or if target panel is dokploy (Swarm mode is incompatible with live-restore)
+    local is_swarm=0
+    if [ "${PANEL:-}" = "dokploy" ]; then
+        is_swarm=1
+    elif command -v docker >/dev/null 2>&1 && docker info 2>/dev/null | grep -qi "Swarm.*active"; then
+        is_swarm=1
+    fi
+
     local tmp_low_ram
     tmp_low_ram="$(mktemp)"
 
@@ -151,7 +159,7 @@ configure_daemon_json() {
   "userland-proxy": false,
   "max-concurrent-downloads": 1,
   "max-concurrent-uploads": 1,
-  "live-restore": true,
+  $([ "$is_swarm" -eq 0 ] && echo '"live-restore": true,')
   "features": {
     "buildkit": false,
     "containerd-snapshotter": true
@@ -176,7 +184,7 @@ EOF
   "userland-proxy": false,
   "max-concurrent-downloads": 1,
   "max-concurrent-uploads": 1,
-  "live-restore": true,
+  $([ "$is_swarm" -eq 0 ] && echo '"live-restore": true,')
   "features": {
     "buildkit": false
   },
@@ -207,10 +215,11 @@ EOF
         # Perform deep merge preserving existing user keys
         if command -v jq >/dev/null 2>&1; then
             local merged_json
-            merged_json=$(jq --argjson snap "$use_snapshotter" --argjson crun "$use_crun_as_default" -s '
+            merged_json=$(jq --argjson snap "$use_snapshotter" --argjson crun "$use_crun_as_default" --argjson swarm "$is_swarm" -s '
                 .[0] * .[1]
                 | if $snap == 1 then del(."storage-driver") else . end
                 | if $crun == 0 and ."default-runtime" == "crun" then del(."default-runtime") else . end
+                | if $swarm == 1 then del(."live-restore") else . end
             ' "$target_file" "$tmp_low_ram" 2>/dev/null || true)
             if [ -n "$merged_json" ]; then
                 echo "$merged_json" | $SUDO_CMD tee "$target_file" >/dev/null
@@ -226,6 +235,7 @@ import json, sys
 try:
     snap = int(sys.argv[4])
     crun = int(sys.argv[5])
+    swarm = int(sys.argv[6])
     with open(sys.argv[1]) as f1, open(sys.argv[2]) as f2:
         d1 = json.load(f1)
         d2 = json.load(f2)
@@ -241,11 +251,13 @@ try:
         merged.pop('storage-driver', None)
     if crun == 0 and merged.get('default-runtime') == 'crun':
         merged.pop('default-runtime', None)
+    if swarm == 1:
+        merged.pop('live-restore', None)
     with open(sys.argv[3], 'w') as out:
         json.dump(merged, out, indent=2)
 except Exception:
     sys.exit(1)
-" "$target_file" "$tmp_low_ram" "$merged_file" "$use_snapshotter" "$use_crun_as_default" 2>/dev/null || true
+" "$target_file" "$tmp_low_ram" "$merged_file" "$use_snapshotter" "$use_crun_as_default" "$is_swarm" 2>/dev/null || true
             if [ -s "$merged_file" ]; then
                 $SUDO_CMD cp "$merged_file" "$target_file"
                 rm -f "$tmp_low_ram" "$merged_file"
